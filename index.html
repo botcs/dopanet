@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>Generative Adversarial Networks</h1>
+    <h1>Generative Adversarial Networks Playground</h1>
     <div>
         <label for="pointsPerSecond">Points per second:</label>
         <input type="range" id="pointsPerSecond" min="10" max="500" value="100">
@@ -18,8 +18,14 @@
         <span id="rangeValue">50</span>
         <br>
         <button id="resetButton">Reset</button>
+        <button id="trainButton">Train</button>
     </div>
     <canvas id="canvas" width="800" height="600"></canvas>
+
+    <h2>Vanilla GAN</h2>
+    <div id="vanillaGAN" width="800", height="600">
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>

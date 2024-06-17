@@ -187,3 +187,71 @@ class FPSCounter {
         this.vislog.push({x: elapsedTime, y: this.lastFPS});
     }
 }
+
+// PLOTLY
+function plotDecisionBoundary(gan) {
+    const realData = gan.trainData;
+    const realDataX = realData.map(p => p[0]);
+    const realDataY = realData.map(p => p[1]);
+    const fakeData = gan.generate(500);
+    const fakeDataX = fakeData.map(p => p[0]);
+    const fakeDataY = fakeData.map(p => p[1]);
+    const decisionData = gan.decisionMap();
+
+
+    // Real data scatter with white color
+    const realScatter = {
+        x: realDataX,
+        y: realDataY,
+        mode: "markers",
+        type: "scatter",
+        name: "Real Data",
+        marker: {color: "black", size: 4},
+        showlegend: false,
+        hovermode: false,
+        opacity: 0.8,
+    };
+
+    // Fake data scatter with red color
+    const fakeScatter = {
+        x: fakeDataX,
+        y: fakeDataY,
+        mode: "markers",
+        type: "scatter",
+        name: "Fake Data",
+        marker: {color: "red", size: 4},
+        showlegend: false,
+        hovermode: false,
+        opacity: 0.8,
+    };
+
+
+    // Contour plot of the decision boundary
+    const decisionContour = {
+        x: decisionData.x,
+        y: decisionData.y,
+        z: decisionData.z,
+        type: "contour",
+        colorscale: "Viridis",
+        showscale: false,
+        hovermode: false,
+        opacity: 0.7,
+    };
+
+    const layout = {
+        title: "Decision Boundary",
+        xaxis: {title: 'X', range: [-1, 1]},
+        yaxis: {title: 'Y', range: [-1, 1]},
+        width: 800,
+        height: 600,
+    };
+    // use preexisting div
+    const plotDiv = document.getElementById("vanillaGAN");
+    Plotly.newPlot(
+        plotDiv, 
+        [decisionContour, realScatter, fakeScatter],
+        // [realScatter],
+        layout
+    );
+}
+

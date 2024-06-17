@@ -1,11 +1,14 @@
 // app.js
+
 const canvas = document.getElementById('canvas');
 const ctx = canvas.getContext('2d');
 const pointsPerSecondInput = document.getElementById('pointsPerSecond');
 const rangeInput = document.getElementById('range');
 const resetButton = document.getElementById('resetButton');
+const trainButton = document.getElementById('trainButton');
 const pointsPerSecondValue = document.getElementById('pointsPerSecondValue');
 const rangeValue = document.getElementById('rangeValue');
+
 const inputData = [];
 
 let isDrawing = false;
@@ -65,12 +68,16 @@ function getNormalizedInputData() {
     const X = inputData.map(p => p[0]);
     const Y = inputData.map(p => p[1]);
     // Use the canvas size as the normalization factor.
-    const normX = X.map(x => x / canvas.width - 0.5);
-    const normY = Y.map(y => y / canvas.height - 0.5);
+    const normX = X.map(x => x / canvas.width  * 2 - 1);
+    const normY = Y.map(y => y / canvas.height * 2 - 1);
+
+    // Flip the Y axis.
+    const flippedY = normY.map(y => -y);
+
     
     const ret = [];
     for (let i = 0; i < X.length; i++) {
-        ret.push([normX[i], normY[i]]);
+        ret.push([normX[i], flippedY[i]]);
     }
     return ret;
 }
@@ -90,6 +97,10 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         // Clear the points array.
         inputData.length = 0;
+    });
+
+    trainButton.addEventListener('click', () => {
+        testVanillaGAN();
     });
 
     canvas.addEventListener('mousedown', (event) => {
@@ -139,6 +150,8 @@ document.addEventListener('DOMContentLoaded', () => {
             rangeValue.textContent = range;
         }
     });
+
+    initVanillaGAN();
 
     // Set up periodic printing of the number of tensors
     window.numTensorLogger = new VisLogger({
