@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Quiver Plot with D3.js</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <style>
+        .axis path,
+        .axis line {
+            fill: none;
+            shape-rendering: crispEdges;
+        }
+        .arrow {
+            fill: none;
+            stroke: steelblue;
+            stroke-width: 1.5px;
+        }
+        .arrowhead {
+            fill: steelblue;
+            stroke: none;
+        }
+    </style>
+</head>
+<body>
+    <svg width="600" height="600"></svg>
+    <script>
+        class DynamicQuiverPlot {
+            constructor(svg) {
+                this.width = svg.attr("width");
+                this.height = svg.attr("height");
+                this.svg = svg;
+                this.init();
+            }
+
+            init() {
+                this.x = d3.scaleLinear().domain([0, 10]).range([0, this.width]);
+                this.y = d3.scaleLinear().domain([0, 10]).range([this.height, 0]);
+
+                this.xAxis = d3.axisBottom(this.x);
+                this.yAxis = d3.axisLeft(this.y);
+
+                this.svg.append("g")
+                    .attr("transform", `translate(0,${this.height})`)
+                    .call(this.xAxis);
+
+                this.svg.append("g")
+                    .call(this.yAxis);
+
+                this.arrows = this.svg.append("g").attr("class", "arrows");
+            }
+
+            update(data) {
+                const arrowSelection = this.arrows.selectAll("line").data(data);
+                const arrowheadSelection = this.arrows.selectAll("path").data(data);
+
+                arrowSelection.enter().append("line")
+                    .attr("class", "arrow")
+                    .merge(arrowSelection)
+                    .attr("x1", d => this.x(d.x))
+                    .attr("y1", d => this.y(d.y))
+                    .attr("x2", d => this.x(d.x + d.u))
+                    .attr("y2", d => this.y(d.y + d.v));
+
+                arrowSelection.exit().remove();
+
+                arrowheadSelection.enter().append("path")
+                    .attr("class", "arrowhead")
+                    .merge(arrowheadSelection)
+                    .attr("d", d => {
+                        const angle = Math.atan2(-d.v, d.u); // Negate d.v to account for SVG's inverted y-axis
+                        const headLength = 10;
+                        const headWidth = 9;
+                        const x2 = this.x(d.x + d.u);
+                        const y2 = this.y(d.y + d.v);
+                        const points = [
+                            { x: x2, y: y2 },
+                            { x: x2 - headLength * Math.cos(angle - Math.PI / 6), y: y2 - headLength * Math.sin(angle - Math.PI / 6) },
+                            { x: x2 - headWidth * Math.cos(angle + Math.PI), y: y2 - headWidth * Math.sin(angle + Math.PI) },
+                            { x: x2 - headLength * Math.cos(angle + Math.PI / 6), y: y2 - headLength * Math.sin(angle + Math.PI / 6) },
+                            { x: x2, y: y2 }
+                        ];
+                        return d3.line()
+                            .x(p => p.x)
+                            .y(p => p.y)
+                            .curve(d3.curveLinear)(points);
+                    });
+
+                arrowheadSelection.exit().remove();
+            }
+        }
+
+        const svg = d3.select("svg");
+        const quiverPlot = new DynamicQuiverPlot(svg);
+
+        // Initial data
+        const data = [];
+        for (let i = 1; i <= 9; i++) {
+            for (let j = 1; j <= 9; j++) {
+                const u = -(j - 5); // change in x
+                const v = i - 5; // change in y
+                data.push({ x: i, y: j, u: u * 0.5, v: v * 0.5 }); // Scaling vectors for better visualization
+            }
+        }
+
+        quiverPlot.update(data);
+
+        // Example of updating data dynamically
+        let t = 0;
+        setInterval(() => {
+            const newData = data.map(d => ({
+                x: d.x,
+                y: d.y,
+                u: d.u * (t++ % 10)/10,
+                v: d.v * (t % 20)/20
+            }));
+            quiverPlot.update(newData);
+        }, 20);
+
+    </script>
+</body>
+</html>

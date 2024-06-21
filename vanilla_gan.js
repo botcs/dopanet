@@ -116,7 +116,7 @@ class VanillaGAN {
             yLabel: 'Loss',
         });
         
-        this.gridSize = 30;
+        this.gridSize = 20;
         const x = tf.linspace(-1, 1, this.gridSize);
         const y = tf.linspace(-1, 1, this.gridSize);
         const grid = tf.meshgrid(x, y);
@@ -175,26 +175,24 @@ class VanillaGAN {
         }
     }
 
-    generate(nSamples) {
+    generate(nSamples) { return tf.tidy(() => {
         const latentPoints = tf.randomNormal([nSamples, this.latentDim]);
         const pred = this.generator.predict(latentPoints);
         const ret = pred.arraySync();
-        tf.dispose([latentPoints, pred]);
         return ret;
-    }
+    });}
 
     dispose() {
         tf.dispose([this.generator, this.discriminator, this.gan]);
     }
 
     // FRONTEND STUFF
-    decisionMap() {
+    decisionMap() { return tf.tidy(() => {
         const points = this.decisionMapInputBuff;
         const predictions = this.discriminator.predict(points).reshape([this.gridSize, this.gridSize]);
         const ret = predictions.arraySync();
-        tf.dispose([predictions]);
         return ret;
-    }
+    });}
         
     gradientMap(gridSize = 20) { return tf.tidy(() => {
         const x = tf.linspace(-1, 1, gridSize);
@@ -204,9 +202,27 @@ class VanillaGAN {
         
         // Calculate gradients of discriminator output with respect to input points
         const gradients = tf.grad(point => this.discriminator.predict(point))(points);
-        const grads = gradients.reshape([gridSize, gridSize, 2]).arraySync();
+        // const grads = gradients.reshape([gridSize, gridSize, 2]).arraySync();
+        // return { x: x.arraySync(), y: y.arraySync(), z: grads };
 
-        return { x: x.arraySync(), y: y.arraySync(), z: grads };
+        const xyuv = tf.concat([points, gradients], 1).reshape([gridSize, gridSize, 4]).arraySync();
+        return xyuv;
     });}
+
+    decisionAndGradientMap() { 
+        return tf.tidy(() => {
+            const points = this.decisionMapInputBuff;
+    
+            // Use tf.valueAndGrad to get both predictions and gradients
+            const res = tf.valueAndGrad(point => this.discriminator.predict(point))(points);
+            
+            const predictions = res.value.reshape([this.gridSize, this.gridSize]);
+
+            const xyuv = tf.concat([points, res.grad], 1).reshape([this.gridSize, this.gridSize, 4]);
+            const ret = [predictions.arraySync(), xyuv.arraySync()];
+    
+            return ret;
+        });
+    }
 
 }

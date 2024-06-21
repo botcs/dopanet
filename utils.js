@@ -134,6 +134,98 @@ class FPSCounter {
         this.vislog.push({x: elapsedTime, y: this.lastFPS});
     }
 }
+
+class DynamicQuiverPlot {
+    constructor({svg, normalize = "mean", xlim = null, ylim = null}={}) {
+        this.width = svg.attr("width");
+        this.height = svg.attr("height");
+        this.normalize = normalize;
+        this.svg = svg;
+        this.arrows = this.svg.append("g").attr("class", "arrows");
+        this.xlim = xlim;
+        this.ylim = ylim;
+        if (xlim !== null) {
+            this.x = d3.scaleLinear().domain(xlim).range([0, this.width]).clamp(true);
+        }
+        if (ylim !== null) {
+            this.y = d3.scaleLinear().domain(ylim).range([this.height, 0]).clamp(true);
+        }
+    }
+
+    update(data) {
+        
+        // data is [gridSizeX, gridSizeY, 4]
+        const [gridSizeX, gridSizeY] = [data.length, data[0].length];
+        
+        // flatten it to [gridSizeX*gridSizeY, 4]
+        data = data.flat(1);
+        
+
+        // map data array to object
+        data = data.map(d => ({ x: d[0], y: d[1], u: d[2], v: d[3] }));
+
+        if (this.normalize === "mean") {
+            const norm = d3.mean(data, d => Math.sqrt(d.u ** 2 + d.v ** 2));
+            const scaleX = 1 / gridSizeX / norm;
+            const scaleY = 1 / gridSizeY / norm;
+            data = data.map(d => ({ x: d.x, y: d.y, u: d.u * scaleX, v: d.v * scaleY }));
+        } else if (this.normalize === "max") {
+            const norm = d3.max(data, d => Math.sqrt(d.u ** 2 + d.v ** 2));
+            const scaleX = 1 / gridSizeX / norm;
+            const scaleY = 1 / gridSizeY / norm;
+            data = data.map(d => ({ x: d.x, y: d.y, u: d.u * scaleX, v: d.v * scaleY }));
+        }
+
+        const xExtent = d3.extent(data, d => d.x+d.u);
+        const yExtent = d3.extent(data, d => d.y+d.v);
+
+        if (this.xlim === null) {
+            this.x = d3.scaleLinear().domain(xExtent).range([0, this.width]).clamp(true);
+        }
+        if (this.ylim === null) {
+            this.y = d3.scaleLinear().domain(yExtent).range([this.height, 0]).clamp(true);
+        }
+        
+        const arrowSelection = this.arrows.selectAll("line").data(data);
+        arrowSelection.enter().append("line")
+            .attr("class", "arrow")
+            .merge(arrowSelection)
+            .attr("x1", d => this.x(d.x))
+            .attr("y1", d => this.y(d.y))
+            .attr("x2", d => this.x(d.x + d.u))
+            .attr("y2", d => this.y(d.y + d.v));
+
+        arrowSelection.exit().remove();
+
+        const arrowheadSelection = this.arrows.selectAll("path").data(data);
+        arrowheadSelection.enter().append("path")
+            .attr("class", "arrowhead")
+            .merge(arrowheadSelection)
+            .attr("d", d => {
+                const angle = Math.atan2(-d.v, d.u); // Negate d.v to account for SVG's inverted y-axis
+                const headLength = 10;
+                const headWidth = 9;
+                const x2 = this.x(d.x + d.u);
+                const y2 = this.y(d.y + d.v);
+                const points = [
+                    { x: x2, y: y2 },
+                    { x: x2 - headLength * Math.cos(angle - Math.PI / 6), y: y2 - headLength * Math.sin(angle - Math.PI / 6) },
+                    { x: x2 - headWidth * Math.cos(angle + Math.PI), y: y2 - headWidth * Math.sin(angle + Math.PI) },
+                    { x: x2 - headLength * Math.cos(angle + Math.PI / 6), y: y2 - headLength * Math.sin(angle + Math.PI / 6) },
+                    { x: x2, y: y2 }
+                ];
+                return d3.line()
+                    .x(p => p.x)
+                    .y(p => p.y)
+                    .curve(d3.curveLinear)(points);
+            });
+
+        arrowheadSelection.exit().remove();
+        this.arrows.raise();
+    }
+}
+
+
 class DynamicContourPlot {
     constructor(svg, xlim = null, ylim = null, zlim = null) {
         this.width = svg.attr("width");
@@ -283,9 +375,6 @@ class DynamicScatterPlot {
         // Bind data to existing circles
         const circles = this.mainGroup.selectAll("circle").data(data);
 
-        // console.log(this.xScale.domain(), this.yScale.domain());
-        // console.log(this.xScale.range(), this.yScale.range());
-        // console.log(this.xScale(data[0][0]), this.yScale(data[0][1]));
 
         // Update existing circles
         circles
@@ -338,21 +427,24 @@ class DynamicDecisionMap {
 
 
         this.contourPlot = new DynamicContourPlot(this.svg, xlim, ylim, zlim);
+        this.quiverPlot = new DynamicQuiverPlot({svg:this.svg, normalize:"mean"});
         this.realDataPlot = new DynamicScatterPlot(this.svg, "black", xlim, ylim);
         this.fakeDataPlot = new DynamicScatterPlot(this.svg, "orange", xlim, ylim);
 
     }
 
     update(data) {
-        const { realData, fakeData, decisionMap } = data;
+        const { realData, fakeData, decisionMap, gradientMap } = data;
 
         this.contourPlot.update(decisionMap);
+        this.quiverPlot.update(gradientMap);
         this.realDataPlot.update(realData);
         this.fakeDataPlot.update(fakeData);
     }
 
     bringToFront() {
         this.contourPlot.bringToFront();
+        this.quiverPlot.bringToFront();
         this.realDataPlot.bringToFront();
         this.fakeDataPlot.bringToFront();
     }
@@ -362,13 +454,11 @@ class DynamicDecisionMap {
         const realData = d3.shuffle(normalizedInputData).slice(0, 200);
 
         const fakeData = gan.generate(200);
-        const decisionData = gan.decisionMap();
+        // const decisionMap = gan.decisionMap();
+        // const gradientMap = gan.gradientMap();
+        const [decisionMap, gradientMap] = gan.decisionAndGradientMap();
 
-        const data = {
-            realData: realData,
-            fakeData: fakeData,
-            decisionMap: decisionData
-        };
+        const data = { realData, fakeData, decisionMap, gradientMap};
 
         this.update(data);
     }
