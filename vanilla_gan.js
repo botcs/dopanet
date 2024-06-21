@@ -73,10 +73,10 @@ class VanillaGAN {
     constructor(
         {
             latentDim = 100,
-            genLayers = 2,
+            genLayers = 4,
             genStartDim = 128,
-            discLayers = 2,
-            discStartDim = 128,
+            discLayers = 4,
+            discStartDim = 512,
             numIter = 100,
             batchSize = 64
         } = {}

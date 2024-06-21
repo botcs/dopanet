@@ -190,10 +190,15 @@ class FPSCounter {
 
 // PLOTLY
 function plotDecisionBoundary(gan) {
-    const realData = gan.trainData;
+    let realData = gan.trainData;
+    // sample 100 points from the real data
+    // shuffle the data
+    tf.util.shuffle(realData);
+    realData = realData.slice(0, 100);
+
     const realDataX = realData.map(p => p[0]);
     const realDataY = realData.map(p => p[1]);
-    const fakeData = gan.generate(500);
+    const fakeData = gan.generate(100);
     const fakeDataX = fakeData.map(p => p[0]);
     const fakeDataY = fakeData.map(p => p[1]);
     const decisionData = gan.decisionMap();
