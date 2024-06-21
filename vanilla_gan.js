@@ -3,7 +3,7 @@
 // Generator Model
 function buildGenerator(latentDim, numLayers = 4, startDim = 128) {
     const generator = tf.sequential();
-    generator.add(tf.layers.dense({ units: startDim, inputShape: [latentDim], activation: 'selu' }));
+    generator.add(tf.layers.dense({ units: startDim, inputShape: [latentDim], activation: 'linear' }));
 
     for (let i = 1; i < numLayers; i++) {
         // add batch normalization
@@ -13,26 +13,23 @@ function buildGenerator(latentDim, numLayers = 4, startDim = 128) {
 
     // generator.add(tf.layers.layerNormalization());
     generator.add(tf.layers.dense({ units: 2, activation: 'linear' })); // Output layer for 2D points
-    generator.compile({
-        optimizer: tf.train.adam(0.001),
-        loss: 'binaryCrossentropy',
-    });
     return generator;
 }
 
 // Discriminator Model
 function buildDiscriminator(numLayers = 4, startDim = 512) {
     const discriminator = tf.sequential();
-    discriminator.add(tf.layers.dense({ units: startDim, inputShape: [2], activation: 'selu' }));
+    discriminator.add(tf.layers.dense({ units: startDim, inputShape: [2], activation: 'linear' }));
 
     for (let i = 1; i < numLayers; i++) {
-        discriminator.add(tf.layers.layerNormalization());
+        // discriminator.add(tf.layers.layerNormalization());
         discriminator.add(tf.layers.dense({ units: startDim / Math.pow(2, i), activation: 'selu'}));
     }
 
     discriminator.add(tf.layers.dense({ units: 1, activation: 'sigmoid' })); // Output layer
     discriminator.compile({
         optimizer: tf.train.adam(0.001),
+        // optimizer: tf.train.sgd(0.001),
         loss: 'binaryCrossentropy',
     });
     return discriminator;
@@ -58,11 +55,19 @@ async function initVanillaGAN() {
 }
 
 async function testVanillaGAN() {
-    x = getNormalizedInputData();
+    const x = getNormalizedInputData();
+    const ddm = new DynamicDecisionMap(
+        "#vanillaGANDecisionMap",
+        500, 400,
+        [-1, 1], [-1, 1],
+        [0, 1]
+    );
     window.gan.numIter = 1000;
     for (let i = 0; i < 1000; i++) {
         const callback = (iter, gLoss, dLoss) => {
-            plotDecisionBoundary(window.gan);
+            if (iter % 1 === 0) {
+                ddm.plot(gan);
+            }
         };
         await window.gan.train(x, callback);
         
@@ -73,10 +78,10 @@ class VanillaGAN {
     constructor(
         {
             latentDim = 100,
-            genLayers = 2,
+            genLayers = 4,
             genStartDim = 128,
-            discLayers = 2,
-            discStartDim = 128,
+            discLayers = 4,
+            discStartDim = 512,
             numIter = 100,
             batchSize = 64
         } = {}
@@ -100,7 +105,8 @@ class VanillaGAN {
         this.gan.add(this.generator);
         this.gan.add(this.discriminator);
         this.gan.compile({
-            optimizer: tf.train.sgd(0.001),
+            // optimizer: tf.train.sgd(0.001),
+            optimizer: tf.train.adam(0.001),
             loss: 'binaryCrossentropy',
         });
 
@@ -116,6 +122,16 @@ class VanillaGAN {
             xLabel: 'Iteration',
             yLabel: 'Loss',
         });
+
+        this.fakeSampleBuffer = tf.buffer([this.batchSize, 2]);
+        
+        this.gridSize = 20;
+        const x = tf.linspace(-1, 1, this.gridSize);
+        const y = tf.linspace(-1, 1, this.gridSize);
+        const grid = tf.meshgrid(x, y);
+        this.decisionMapInputBuff = tf.stack([grid[0].flatten(), grid[1].flatten()], 1);
+        this.decisionMapOutputBuff = tf.buffer([this.gridSize**2, 2]);
+        tf.dispose([x, y, grid]);
     }
 
     async train(trainData, callback = null) {
@@ -143,8 +159,8 @@ class VanillaGAN {
             this.discriminator.trainable = false;
             const gLoss = await this.gan.trainOnBatch(latentPoints, misleadingLabels);
 
-            this.gLossVisor.push({ x: iter, y: gLoss });
-            this.dLossVisor.push({ x: iter, y: dLoss });
+            // this.gLossVisor.push({ x: iter, y: gLoss });
+            // this.dLossVisor.push({ x: iter, y: dLoss });
 
             if (callback) callback(iter, gLoss, dLoss);
 
@@ -172,16 +188,15 @@ class VanillaGAN {
     }
 
     // FRONTEND STUFF
-    decisionMap(gridSize = 20) {return tf.tidy(() => {
-        const x = tf.linspace(-1, 1, gridSize);
-        const y = tf.linspace(-1, 1, gridSize);
-        const grid = tf.meshgrid(x, y);
-        const points = tf.stack([grid[0].flatten(), grid[1].flatten()], 1);
-        const predictions = this.discriminator.predict(points).reshape([gridSize, gridSize]).arraySync();
-        return { x: x.arraySync(), y: y.arraySync(), z: predictions };
-    });}
+    decisionMap(gridSize = 20) {
+        // const predictions = this.discriminator.predict(points).arraySync();
         
-    gradientMap(gridSize = 10) { return tf.tidy(() => {
+        
+        return { x: x.arraySync(), y: y.arraySync(), z: predictions };
+
+    }
+        
+    gradientMap(gridSize = 20) { return tf.tidy(() => {
         const x = tf.linspace(-1, 1, gridSize);
         const y = tf.linspace(-1, 1, gridSize);
         const grid = tf.meshgrid(x, y);
@@ -193,121 +208,5 @@ class VanillaGAN {
 
         return { x: x.arraySync(), y: y.arraySync(), z: grads };
     });}
-
-    plotGradientMap() {
-        // streamplot
-        const data = this.gradientMap();
-        const name = 'Gradient Map';
-        const container = tfvis.visor().surface({ name, tab: 'Vanilla GAN' });
-        
-        // Function to plot the gradient field with arrowheads
-        const { x, y, z: grads } = data;
-        const gridRes = x.length;
-
-        // Prepare the quiver plot data
-        const quiverData = {
-            type: 'scattergl',
-            mode: 'markers',
-            x: [],
-            y: [],
-            marker: { size: .01, color: 'black' },
-            showlegend: false
-        };
-
-        const quiverArrows = {
-            type: 'scattergl',
-            mode: 'lines',
-            x: [],
-            y: [],
-            line: {
-                width: 3,
-                color: 'black'
-            },
-            showlegend: false
-        };
-
-        const arrowheads = {
-            type: 'scattergl',
-            mode: 'lines',
-            x: [],
-            y: [],
-            line: {
-                width: 3,
-                color: 'black'
-            },
-            showlegend: false
-        };
-
-        const trainingData = {
-            x: getNormalizedInputData().map(p => p[0]),
-            y: getNormalizedInputData().map(p => p[1]),
-            mode: 'markers',
-            marker: { size: 4, color: 'red' },
-            showlegend: false
-        }
-
-        const avgNorm = tf.tidy(() => {
-            const gradTensor = tf.tensor(grads);
-            const norm = gradTensor.norm('euclidean', [2]).mean();
-            return norm;
-        });
-        const scale = 1 / avgNorm.dataSync() / gridRes;
-        
-
-        const arrowSize = 0.05; // Size of the arrowheads
-
-        for (let i = 0; i < gridRes; i++) {
-            for (let j = 0; j < gridRes; j++) {
-                const startX = x[i];
-                const startY = y[j];
-                // Truncate at length 1 after rescaling
-                const U = Math.min(grads[i][j][0] * scale, 1);
-                const V = Math.min(grads[i][j][1] * scale, 1);
-                
-                const endX = startX + U;
-                const endY = startY + V;
-
-                quiverData.x.push(startX);
-                quiverData.y.push(startY);
-
-                quiverArrows.x.push(startX, endX, null);
-                quiverArrows.y.push(startY, endY, null);
-
-                // Calculate the angle of the gradient vector
-                const angle = Math.atan2(U, V);
-
-                // Calculate the arrowhead points
-                const arrowhead1X = endX - arrowSize * Math.cos(angle - Math.PI / 6);
-                const arrowhead1Y = endY - arrowSize * Math.sin(angle - Math.PI / 6);
-                const arrowhead2X = endX - arrowSize * Math.cos(angle + Math.PI / 6);
-                const arrowhead2Y = endY - arrowSize * Math.sin(angle + Math.PI / 6);
-
-                // Add arrowhead lines
-                arrowheads.x.push(endX, arrowhead1X, null);
-                arrowheads.y.push(endY, arrowhead1Y, null);
-                arrowheads.x.push(endX, arrowhead2X, null);
-                arrowheads.y.push(endY, arrowhead2Y, null);
-            }
-        }
-
-        const layout = {
-            title: 'Gradient Field',
-            xaxis: { title: 'X' },
-            yaxis: { title: 'Y', scaleanchor: "x", scaleratio: 1 },
-            showlegend: false,
-            hovermode: false
-        };
-
-        Plotly.react(
-            container.drawArea, 
-            [
-                quiverData, 
-                quiverArrows, 
-                arrowheads,
-                trainingData
-            ], 
-            layout
-        );
-    }
 
 }

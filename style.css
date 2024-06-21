@@ -17,10 +17,57 @@ div {
     margin-bottom: 10px;
 }
 
+.GANBox {
+    display: flex;
+    /* justify-content: center; */
+    align-items: center;
+    flex-direction: column;
+    border: 1px solid black;
+}
+
 label {
     margin-right: 10px;
 }
 
 button {
     margin-top: 10px;
+}
+
+/* Set canvas size for phones */
+@media (max-width: 767px) {
+    canvas {
+        width: 90vw;
+        height: 50vh;
+    }
+
+    .GANBox {
+        width: 90vw;
+        height: 50vh;
+    }
+}
+
+/* Set canvas size for tablets and laptops */
+@media (min-width: 768px) {
+    canvas {
+        width: 80vw;
+        height: 60vh;
+    }
+
+    .GANBox {
+        width: 80vw;
+        height: 60vh;
+    }
+}
+
+/* Set canvas size for desktops */
+@media (min-width: 1024px) {
+    canvas {
+        width: 50em;
+        height: 40em;
+    }
+
+    .GANBox {
+        height: 80em;
+        width: 50em;
+    }
 }

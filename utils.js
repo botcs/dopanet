@@ -6,6 +6,7 @@ class VisLogger {
         tab = "History",
         xLabel = "Iteration",
         yLabel = "Y",
+        drawArea = null,
         height = 300,
         maxSize = 150,
     }) {
@@ -15,16 +16,20 @@ class VisLogger {
         this.X = [];
         this.Y = [];
         this.yLabel = yLabel;
-        this.surface = tfvis.visor().surface({ name: name, tab: tab });
         this.axisSettings = { xLabel: xLabel, yLabel: yLabel, height: height };
         this.maxSize = maxSize;
         this.lastUpdateTime = 0;
         this.timeoutId = null;
-
+        
         // Create a canvas element for Chart.js
         this.canvas = document.createElement('canvas');
-        this.surface.drawArea.appendChild(this.canvas);
-
+        if (drawArea) {
+            drawArea.appendChild(this.canvas);
+        } else {
+            this.surface = tfvis.visor().surface({ name: name, tab: tab });
+            this.surface.drawArea.appendChild(this.canvas);
+        }
+        
         this.chart = new Chart(this.canvas, {
             type: 'line',
             data: {
@@ -86,66 +91,10 @@ class VisLogger {
         this.X.push(x);
         this.Y.push(y);
 
-        // if (this.X.length > this.maxSize) {
-        //     const points = this.X.map((x, index) => ({ x, y: this.Y[index] }));
-        //     const numReducedPoints = Math.floor(this.maxSize * 0.7);
-        //     const reducedPoints = this.largestTriangleThreeBuckets(points, numReducedPoints);
-
-        //     this.X = reducedPoints.map(p => p.x);
-        //     this.Y = reducedPoints.map(p => p.y);
-
-        //     this.chart.data.labels = this.X;
-        //     this.chart.data.datasets[0].data = this.Y;
-        // }
-
         this.chart.update();
         this.numUpdates++;
     }
 
-    largestTriangleThreeBuckets(data, threshold) {
-        if (threshold >= data.length || threshold === 0) {
-            return data; // No subsampling needed
-        }
-
-        const sampled = [];
-        const bucketSize = (data.length - 2) / (threshold - 2);
-        let a = 0; // Initially the first point is included
-        let maxArea;
-        let area;
-        let nextA;
-
-        sampled.push(data[a]); // Always include the first point
-
-        for (let i = 0; i < threshold - 2; i++) {
-            const avgRangeStart = Math.floor((i + 1) * bucketSize) + 1;
-            const avgRangeEnd = Math.floor((i + 2) * bucketSize) + 1;
-            const avgRange = data.slice(avgRangeStart, avgRangeEnd);
-            
-            const avgX = avgRange.reduce((sum, point) => sum + point.x, 0) / avgRange.length;
-            const avgY = avgRange.reduce((sum, point) => sum + point.y, 0) / avgRange.length;
-            
-            const rangeStart = Math.floor(i * bucketSize) + 1;
-            const rangeEnd = Math.floor((i + 1) * bucketSize) + 1;
-            const range = data.slice(rangeStart, rangeEnd);
-
-            maxArea = -1;
-
-            for (let j = 0; j < range.length; j++) {
-                area = Math.abs((data[a].x - avgX) * (range[j].y - data[a].y) -
-                                (data[a].x - range[j].x) * (avgY - data[a].y));
-                if (area > maxArea) {
-                    maxArea = area;
-                    nextA = rangeStart + j;
-                }
-            }
-
-            sampled.push(data[nextA]); // Include the point with the largest area
-            a = nextA; // Set a to the selected point
-        }
-
-        sampled.push(data[data.length - 1]); // Always include the last point
-        return sampled;
-    }
 }
 
 class FPSCounter {
@@ -188,70 +137,175 @@ class FPSCounter {
     }
 }
 
-// PLOTLY
-function plotDecisionBoundary(gan) {
-    const realData = gan.trainData;
-    const realDataX = realData.map(p => p[0]);
-    const realDataY = realData.map(p => p[1]);
-    const fakeData = gan.generate(500);
-    const fakeDataX = fakeData.map(p => p[0]);
-    const fakeDataY = fakeData.map(p => p[1]);
-    const decisionData = gan.decisionMap();
+class DynamicContourPlot {
+    constructor(svg, xlim = null, ylim = null, zlim = null) {
+        this.width = svg.attr("width");
+        this.height = svg.attr("height");
+        this.svg = svg;
+        this.mainGroup = svg.append("g");
 
+        this.color = d3.scaleSequential(d3.interpolateViridis)
+            .domain(zlim !== null ? zlim : [0, 1]);
 
-    // Real data scatter with white color
-    const realScatter = {
-        x: realDataX,
-        y: realDataY,
-        mode: "markers",
-        type: "scatter",
-        name: "Real Data",
-        marker: {color: "black", size: 4},
-        showlegend: false,
-        hovermode: false,
-        opacity: 0.8,
-    };
+        this.xlim = xlim;
+        this.ylim = ylim;
+        this.zlim = zlim;
+    }
 
-    // Fake data scatter with red color
-    const fakeScatter = {
-        x: fakeDataX,
-        y: fakeDataY,
-        mode: "markers",
-        type: "scatter",
-        name: "Fake Data",
-        marker: {color: "red", size: 4},
-        showlegend: false,
-        hovermode: false,
-        opacity: 0.8,
-    };
+    update(data, shape) {
+        const { z } = data;
 
+        let contours;
+        // if (this.zlim !== null) {
+        //     contours = d3.contours()
+        //         .size(shape)
+        //         .thresholds(
+        //             d3.range(
+        //                 this.zlim[0],
+        //                 this.zlim[1],
+        //                 (this.zlim[1] - this.zlim[0]) / 10
+        //             )
+        //         )(z);
+        // } else {
+            contours = d3.contours()
+                .size(shape)
+                (z);
+        // }
 
-    // Contour plot of the decision boundary
-    const decisionContour = {
-        x: decisionData.x,
-        y: decisionData.y,
-        z: decisionData.z,
-        type: "contour",
-        colorscale: "Viridis",
-        showscale: false,
-        hovermode: false,
-        opacity: 0.7,
-    };
+        // Clear previous contours
+        this.mainGroup.selectAll("path").remove();
 
-    const layout = {
-        title: "Decision Boundary",
-        xaxis: {title: 'X', range: [-1, 1]},
-        yaxis: {title: 'Y', range: [-1, 1]},
-        width: 800,
-        height: 600,
-    };
-    // use preexisting div
-    const plotDiv = document.getElementById("vanillaGAN");
-    Plotly.newPlot(
-        plotDiv, 
-        [decisionContour, realScatter, fakeScatter],
-        // [realScatter],
-        layout
-    );
+        // Add contours to the svg
+        this.mainGroup.selectAll("path")
+            .data(contours)
+            .enter()
+            .append("path")
+            .attr("d", d3.geoPath(d3.geoIdentity().scale(this.width / shape[0])))
+            // Handle xlim and ylim
+            .attr("transform", `translate(0, ${this.height}) scale(1, -1)`)
+            .attr("fill", d => this.color(d.value))
+            .attr("stroke", "#69b3a2")
+            .attr("stroke-width", 1)
+            .attr("opacity", 0.7);
+    }
+
+    bringToFront() {
+        this.mainGroup.raise();
+    }
 }
 
+// DynamicScatterPlot class
+class DynamicScatterPlot {
+    constructor(svg, color = "#69b3a2", xlim = null, ylim = null) {
+        this.width = svg.attr("width");
+        this.height = svg.attr("height");
+        this.svg = svg;
+        this.mainGroup = svg.append("g");
+
+        this.xScale = d3.scaleLinear().range([0, this.width]);
+        this.yScale = d3.scaleLinear().range([this.height, 0]);
+
+        this.color = color;
+        this.xlim = xlim;
+        this.ylim = ylim;
+    }
+
+    update(data) {
+        const { x, y } = data;
+
+        this.mainGroup.selectAll("circle").remove();
+
+        
+        // handle xlim and ylim
+        if (this.xlim !== null) {
+            this.xScale.domain(this.xlim);
+        } else {
+            this.xScale.domain(d3.extent(x));
+        }
+        if (this.ylim !== null) {
+            this.yScale.domain(this.ylim);
+        } else {
+            this.yScale.domain(d3.extent(y));
+        }
+
+        this.mainGroup.selectAll("circle")
+            .data(x.map((d, i) => ({ x: d, y: y[i] })))
+            .enter()
+            .append("circle")
+            .attr("cx", d => this.xScale(d.x))
+            .attr("cy", d => this.yScale(d.y))
+            .attr("r", 3)
+            .attr("fill", this.color)
+            .attr("stroke", "#000")
+            .attr("stroke-width", 1)
+            .attr("opacity", 0.7);
+    }
+
+    bringToFront() {
+        this.mainGroup.raise();
+    }
+}
+
+// DynamicDecisionMap class
+class DynamicDecisionMap {
+    constructor(div, width = 500, height = 500, xlim = null, ylim = null, zlim = null) {
+        console.log(div);
+        // Find the svg if doesn't exist create one
+        this.svg = d3.select(div).select("svg");
+        console.log(this.svg, this.svg.empty());
+        if (this.svg.empty()) {
+            this.svg = d3.select(div).append("svg")
+                .attr("width", width)
+                .attr("height", height);
+            console.log(this.svg, this.svg.empty());
+            
+        }
+
+        this.contourPlot = new DynamicContourPlot(this.svg, xlim, ylim, zlim);
+        this.realDataPlot = new DynamicScatterPlot(this.svg, "black", xlim, ylim);
+        this.fakeDataPlot = new DynamicScatterPlot(this.svg, "orange", xlim, ylim);
+
+    }
+
+    update(data) {
+        const { realData, fakeData, decisionMap } = data;
+
+        const { x, y, z } = decisionMap;
+
+        const shape = [y.length, x.length];
+        
+        if (z.length !== shape[0] * shape[1]) {
+            console.log(z.length, shape[0], shape[1]);
+            throw new Error("Shape of z does not match inferred shape from x and y");
+        }
+
+        this.contourPlot.update({ z: z }, shape);
+        this.realDataPlot.update(realData);
+        this.fakeDataPlot.update(fakeData);
+    }
+
+    bringToFront() {
+        this.contourPlot.bringToFront();
+        this.realDataPlot.bringToFront();
+        this.fakeDataPlot.bringToFront();
+    }
+
+    plot(gan) {
+        // Randomly select 500 points from the real data
+        const realData = d3.shuffle(gan.trainData).slice(0, 100);
+        const realDataX = realData.map(p => p[0]);
+        const realDataY = realData.map(p => p[1]);
+        const fakeData = gan.generate(100);
+        const fakeDataX = fakeData.map(p => p[0]);
+        const fakeDataY = fakeData.map(p => p[1]);
+        const decisionData = gan.decisionMap();
+    
+        const data = {
+            realData: { x: realDataX, y: realDataY },
+            fakeData: { x: fakeDataX, y: fakeDataY },
+            decisionMap: decisionData
+        };
+    
+        this.update(data);
+    }
+}
