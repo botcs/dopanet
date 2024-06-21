@@ -10,6 +10,7 @@ const pointsPerSecondValue = document.getElementById('pointsPerSecondValue');
 const rangeValue = document.getElementById('rangeValue');
 
 const inputData = [];
+const normalizedInputData = [];
 
 let isDrawing = false;
 let pointsPerSecond = parseInt(pointsPerSecondInput.value, 10);
@@ -49,6 +50,7 @@ function scatterPoints(x, y) {
     newPoints.forEach(point => {
         ctx.fillRect(point[0], point[1], 1, 1);
         inputData.push(point);
+        normalizedInputData.push([point[0] / canvas.width * 2 - 1, -point[1] / canvas.height * 2 + 1]);
     });
 }
 
@@ -64,9 +66,9 @@ function drawCircle(x, y, radius) {
     ctx.strokeStyle = 'black';
 }
 
-function getNormalizedInputData() {
-    const X = inputData.map(p => p[0]);
-    const Y = inputData.map(p => p[1]);
+function normalizeData(data) {
+    const X = data.map(p => p[0]);
+    const Y = data.map(p => p[1]);
     // Use the canvas size as the normalization factor.
     const normX = X.map(x => x / canvas.width * 2 - 1);
     const normY = Y.map(y => y / canvas.height * 2 - 1);
@@ -101,6 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         // Clear the points array.
         inputData.length = 0;
+        normalizedInputData.length = 0;
     });
 
     trainButton.addEventListener('click', () => {

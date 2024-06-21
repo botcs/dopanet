@@ -130,8 +130,6 @@ class FPSCounter {
     }
 
     log() {
-        // console.log(`${this.name} - moving avg FPS: ${this.lastFPS.toFixed(2)}`);
-        // console.log(`Number of tensors: ${tf.memory().numTensors}`);
         let elapsedTime = Math.floor((performance.now() - this.startTime)/1000);
         this.vislog.push({x: elapsedTime, y: this.lastFPS});
     }
@@ -152,8 +150,10 @@ class DynamicContourPlot {
         this.zlim = zlim;
     }
 
-    update(data, shape) {
-        const { z } = data;
+    update(z) {
+        const shape = [z.length, z[0].length];
+        // flatten z
+        z = z.flat();
 
         let contours;
         // if (this.zlim !== null) {
@@ -205,40 +205,55 @@ class DynamicScatterPlot {
         this.xScale = d3.scaleLinear().range([0, this.width]);
         this.yScale = d3.scaleLinear().range([this.height, 0]);
 
+
         this.color = color;
         this.xlim = xlim;
         this.ylim = ylim;
     }
 
     update(data) {
-        const { x, y } = data;
-
-        this.mainGroup.selectAll("circle").remove();
-
-        
         // handle xlim and ylim
         if (this.xlim !== null) {
             this.xScale.domain(this.xlim);
         } else {
-            this.xScale.domain(d3.extent(x));
+            this.xScale.domain(d3.extent(data, d => d[0]));
         }
         if (this.ylim !== null) {
             this.yScale.domain(this.ylim);
         } else {
-            this.yScale.domain(d3.extent(y));
+            this.yScale.domain(d3.extent(data, d => d[1]));
         }
+        // Bind data to existing circles
+        const circles = this.mainGroup.selectAll("circle").data(data);
 
-        this.mainGroup.selectAll("circle")
-            .data(x.map((d, i) => ({ x: d, y: y[i] })))
-            .enter()
-            .append("circle")
-            .attr("cx", d => this.xScale(d.x))
-            .attr("cy", d => this.yScale(d.y))
+        // console.log(this.xScale.domain(), this.yScale.domain());
+        // console.log(this.xScale.range(), this.yScale.range());
+        // console.log(this.xScale(data[0][0]), this.yScale(data[0][1]));
+
+        // Update existing circles
+        circles
+            .attr("cx", d => this.xScale(d[0]))
+            .attr("cy", d => this.yScale(d[1]))
             .attr("r", 3)
             .attr("fill", this.color)
             .attr("stroke", "#000")
             .attr("stroke-width", 1)
             .attr("opacity", 0.7);
+
+        // Enter new circles
+        circles.enter()
+            .append("circle")
+            .attr("cx", d => this.xScale(d[0]))
+            .attr("cy", d => this.yScale(d[1]))
+            .attr("r", 3)
+            .attr("fill", this.color)
+            .attr("stroke", "#000")
+            .attr("stroke-width", 1)
+            .attr("opacity", 0.7);
+
+        // Remove circles that are no longer needed
+        circles.exit().remove();
+
     }
 
     bringToFront() {
@@ -248,18 +263,22 @@ class DynamicScatterPlot {
 
 // DynamicDecisionMap class
 class DynamicDecisionMap {
-    constructor(div, width = 500, height = 500, xlim = null, ylim = null, zlim = null) {
-        console.log(div);
+    constructor(div, xlim = null, ylim = null, zlim = null) {
         // Find the svg if doesn't exist create one
         this.svg = d3.select(div).select("svg");
-        console.log(this.svg, this.svg.empty());
         if (this.svg.empty()) {
-            this.svg = d3.select(div).append("svg")
-                .attr("width", width)
-                .attr("height", height);
-            console.log(this.svg, this.svg.empty());
-            
+            this.svg = d3.select(div).append("svg");
         }
+
+        // Infer width and height
+        const width = parseInt(this.svg.style("width"));
+        const height = parseInt(this.svg.style("height"));
+
+        // Set attributes
+        this.svg
+            .attr("width", width)
+            .attr("height", height);
+
 
         this.contourPlot = new DynamicContourPlot(this.svg, xlim, ylim, zlim);
         this.realDataPlot = new DynamicScatterPlot(this.svg, "black", xlim, ylim);
@@ -270,16 +289,7 @@ class DynamicDecisionMap {
     update(data) {
         const { realData, fakeData, decisionMap } = data;
 
-        const { x, y, z } = decisionMap;
-
-        const shape = [y.length, x.length];
-        
-        if (z.length !== shape[0] * shape[1]) {
-            console.log(z.length, shape[0], shape[1]);
-            throw new Error("Shape of z does not match inferred shape from x and y");
-        }
-
-        this.contourPlot.update({ z: z }, shape);
+        this.contourPlot.update(decisionMap);
         this.realDataPlot.update(realData);
         this.fakeDataPlot.update(fakeData);
     }
@@ -292,20 +302,17 @@ class DynamicDecisionMap {
 
     plot(gan) {
         // Randomly select 500 points from the real data
-        const realData = d3.shuffle(gan.trainData).slice(0, 100);
-        const realDataX = realData.map(p => p[0]);
-        const realDataY = realData.map(p => p[1]);
-        const fakeData = gan.generate(100);
-        const fakeDataX = fakeData.map(p => p[0]);
-        const fakeDataY = fakeData.map(p => p[1]);
+        const realData = d3.shuffle(normalizedInputData).slice(0, 200);
+
+        const fakeData = gan.generate(200);
         const decisionData = gan.decisionMap();
-    
+
         const data = {
-            realData: { x: realDataX, y: realDataY },
-            fakeData: { x: fakeDataX, y: fakeDataY },
+            realData: realData,
+            fakeData: fakeData,
             decisionMap: decisionData
         };
-    
+
         this.update(data);
     }
 }

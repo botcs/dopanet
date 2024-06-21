@@ -28,21 +28,16 @@ function buildDiscriminator(numLayers = 4, startDim = 512) {
 
     discriminator.add(tf.layers.dense({ units: 1, activation: 'sigmoid' })); // Output layer
     discriminator.compile({
-        optimizer: tf.train.adam(0.001),
+        optimizer: tf.train.adam(0.0003),
         // optimizer: tf.train.sgd(0.001),
         loss: 'binaryCrossentropy',
     });
     return discriminator;
 }
 
-// Function to generate latent points
-function generateLatentPoints(latentDim, nSamples) {
-    return tf.randomNormal([nSamples, latentDim]);
-}
-
 // Function to generate fake samples
 function generateFakeSamples(generator, latentDim, nSamples) {
-    const latentPoints = generateLatentPoints(latentDim, nSamples);
+    const latentPoints = tf.randomNormal([nSamples, latentDim]);
     const samples = generator.predict(latentPoints);
     tf.dispose([latentPoints]);
     return samples;
@@ -55,10 +50,8 @@ async function initVanillaGAN() {
 }
 
 async function testVanillaGAN() {
-    const x = getNormalizedInputData();
     const ddm = new DynamicDecisionMap(
-        "#vanillaGANDecisionMap",
-        500, 400,
+        "#vanillaGAN",
         [-1, 1], [-1, 1],
         [0, 1]
     );
@@ -69,7 +62,7 @@ async function testVanillaGAN() {
                 ddm.plot(gan);
             }
         };
-        await window.gan.train(x, callback);
+        await window.gan.train(callback);
         
     }
 }
@@ -106,7 +99,7 @@ class VanillaGAN {
         this.gan.add(this.discriminator);
         this.gan.compile({
             // optimizer: tf.train.sgd(0.001),
-            optimizer: tf.train.adam(0.001),
+            optimizer: tf.train.adam(0.0007),
             loss: 'binaryCrossentropy',
         });
 
@@ -122,26 +115,31 @@ class VanillaGAN {
             xLabel: 'Iteration',
             yLabel: 'Loss',
         });
-
-        this.fakeSampleBuffer = tf.buffer([this.batchSize, 2]);
         
-        this.gridSize = 20;
+        this.gridSize = 30;
         const x = tf.linspace(-1, 1, this.gridSize);
         const y = tf.linspace(-1, 1, this.gridSize);
         const grid = tf.meshgrid(x, y);
         this.decisionMapInputBuff = tf.stack([grid[0].flatten(), grid[1].flatten()], 1);
-        this.decisionMapOutputBuff = tf.buffer([this.gridSize**2, 2]);
         tf.dispose([x, y, grid]);
+
+        this.isTraining = false;
     }
 
-    async train(trainData, callback = null) {
-        this.trainData = trainData;
-        const dataTensor = tf.tensor2d(trainData);
+    async train(callback = null) {
+        if (this.isTraining) return;
+        this.isTraining = true;
+        
+        // const dataTensor = tf.tensor2d(trainData);
         const halfBatch = Math.floor(this.batchSize / 2);
-
+        const realSamplesBuff = tf.buffer([halfBatch, 2]);
         for (let iter = 0; iter < this.numIter; iter++) {
-            const idx = tf.randomUniform([halfBatch], 0, trainData.length, 'int32');
-            const realSamples = tf.gather(dataTensor, idx);
+            const realSamplesValues = d3.shuffle(normalizedInputData).slice(0, halfBatch);
+            for (let i = 0; i < halfBatch; i++) {
+                realSamplesBuff.set(realSamplesValues[i][0], i, 0);
+                realSamplesBuff.set(realSamplesValues[i][1], i, 1);
+            }
+            const realSamples = realSamplesBuff.toTensor();
             const fakeSamples = generateFakeSamples(this.generator, this.latentDim, halfBatch);
 
             const realLabels = tf.ones([halfBatch, 1]);
@@ -153,7 +151,7 @@ class VanillaGAN {
             this.discriminator.trainable = true;
             const dLoss = await this.discriminator.trainOnBatch(dInputs, dLabels);
 
-            const latentPoints = generateLatentPoints(this.latentDim, this.batchSize);
+            const latentPoints = tf.randomNormal([this.batchSize, this.latentDim]);
             const misleadingLabels = tf.ones([this.batchSize, 1]);
 
             this.discriminator.trainable = false;
@@ -165,7 +163,6 @@ class VanillaGAN {
             if (callback) callback(iter, gLoss, dLoss);
 
             tf.dispose([
-                idx,
                 realSamples, 
                 fakeSamples, 
                 realLabels, 
@@ -178,22 +175,25 @@ class VanillaGAN {
         }
     }
 
-    generate(nSamples) {return tf.tidy(() => {
-        const latentPoints = generateLatentPoints(this.latentDim, nSamples);
-        return this.generator.predict(latentPoints).arraySync();
-    })}
+    generate(nSamples) {
+        const latentPoints = tf.randomNormal([nSamples, this.latentDim]);
+        const pred = this.generator.predict(latentPoints);
+        const ret = pred.arraySync();
+        tf.dispose([latentPoints, pred]);
+        return ret;
+    }
 
     dispose() {
         tf.dispose([this.generator, this.discriminator, this.gan]);
     }
 
     // FRONTEND STUFF
-    decisionMap(gridSize = 20) {
-        // const predictions = this.discriminator.predict(points).arraySync();
-        
-        
-        return { x: x.arraySync(), y: y.arraySync(), z: predictions };
-
+    decisionMap() {
+        const points = this.decisionMapInputBuff;
+        const predictions = this.discriminator.predict(points).reshape([this.gridSize, this.gridSize]);
+        const ret = predictions.arraySync();
+        tf.dispose([predictions]);
+        return ret;
     }
         
     gradientMap(gridSize = 20) { return tf.tidy(() => {
