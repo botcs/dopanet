@@ -134,10 +134,10 @@ class VanillaGAN {
         const halfBatch = Math.floor(this.batchSize / 2);
         const realSamplesBuff = tf.buffer([halfBatch, 2]);
         for (let iter = 0; iter < this.numIter; iter++) {
-            const realSamplesValues = d3.shuffle(normalizedInputData).slice(0, halfBatch);
             for (let i = 0; i < halfBatch; i++) {
-                realSamplesBuff.set(realSamplesValues[i][0], i, 0);
-                realSamplesBuff.set(realSamplesValues[i][1], i, 1);
+                const [x, y] = normalizedInputData[Math.floor(Math.random() * normalizedInputData.length)]
+                realSamplesBuff.set(x, i, 0);
+                realSamplesBuff.set(y, i, 1);
             }
             const realSamples = realSamplesBuff.toTensor();
             const fakeSamples = generateFakeSamples(this.generator, this.latentDim, halfBatch);

@@ -110,8 +110,8 @@ document.addEventListener('DOMContentLoaded', () => {
     resetButton.addEventListener('click', () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         // Clear the points array.
-        inputData.length = 0;
-        normalizedInputData.length = 0;
+        inputData.length = 1;
+        normalizedInputData.length = 1;
     });
 
     trainButton.addEventListener('click', () => {
