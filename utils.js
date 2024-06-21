@@ -155,32 +155,19 @@ class DynamicContourPlot {
         // flatten z
         z = z.flat();
 
-        let contours;
-        // if (this.zlim !== null) {
-        //     contours = d3.contours()
-        //         .size(shape)
-        //         .thresholds(
-        //             d3.range(
-        //                 this.zlim[0],
-        //                 this.zlim[1],
-        //                 (this.zlim[1] - this.zlim[0]) / 10
-        //             )
-        //         )(z);
-        // } else {
-            contours = d3.contours()
-                .size(shape)
-                (z);
-        // }
+        const contours = d3.contours()
+                .size(shape)(z);
 
         // Clear previous contours
         this.mainGroup.selectAll("path").remove();
 
-        // Add contours to the svg
+        // Calculate aspect ratio scaling
+        const scale = Math.max(this.width / shape[1], this.height / shape[0]);
         this.mainGroup.selectAll("path")
             .data(contours)
             .enter()
             .append("path")
-            .attr("d", d3.geoPath(d3.geoIdentity().scale(this.width / shape[0])))
+            .attr("d", d3.geoPath(d3.geoIdentity().scale(scale)))
             // Handle xlim and ylim
             .attr("transform", `translate(0, ${this.height}) scale(1, -1)`)
             .attr("fill", d => this.color(d.value))
@@ -193,6 +180,7 @@ class DynamicContourPlot {
         this.mainGroup.raise();
     }
 }
+
 
 // DynamicScatterPlot class
 class DynamicScatterPlot {
