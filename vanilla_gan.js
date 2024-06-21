@@ -28,7 +28,7 @@ function buildDiscriminator(numLayers = 4, startDim = 512) {
 
     discriminator.add(tf.layers.dense({ units: 1, activation: 'sigmoid' })); // Output layer
     discriminator.compile({
-        optimizer: tf.train.adam(0.0003),
+        optimizer: tf.train.adam(0.0001),
         // optimizer: tf.train.sgd(0.001),
         loss: 'binaryCrossentropy',
     });
@@ -99,7 +99,7 @@ class VanillaGAN {
         this.gan.add(this.discriminator);
         this.gan.compile({
             // optimizer: tf.train.sgd(0.001),
-            optimizer: tf.train.adam(0.0007),
+            optimizer: tf.train.adam(0.001),
             loss: 'binaryCrossentropy',
         });
 

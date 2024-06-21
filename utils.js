@@ -134,7 +134,6 @@ class FPSCounter {
         this.vislog.push({x: elapsedTime, y: this.lastFPS});
     }
 }
-
 class DynamicContourPlot {
     constructor(svg, xlim = null, ylim = null, zlim = null) {
         this.width = svg.attr("width");
@@ -148,32 +147,102 @@ class DynamicContourPlot {
         this.xlim = xlim;
         this.ylim = ylim;
         this.zlim = zlim;
+
+        this.colorbarGroup = svg.append("g")
+            .attr("class", "colorbar-group")
+            .attr("transform", `translate(${this.width-50}, ${this.height*0.1}) scale(1, 0.8)`);
+
+        this._createColorbar();
     }
 
     update(z) {
         const shape = [z.length, z[0].length];
-        // flatten z
         z = z.flat();
 
         const contours = d3.contours()
-                .size(shape)(z);
+            .size(shape)
+            .smooth(true)(z);
 
-        // Clear previous contours
-        this.mainGroup.selectAll("path").remove();
-
-        // Calculate aspect ratio scaling
         const scale = Math.max(this.width / shape[1], this.height / shape[0]);
-        this.mainGroup.selectAll("path")
-            .data(contours)
-            .enter()
+        const path = d3.geoPath(d3.geoIdentity().scale(scale));
+
+        const paths = this.mainGroup.selectAll("path").data(contours);
+
+        paths.enter()
             .append("path")
-            .attr("d", d3.geoPath(d3.geoIdentity().scale(scale)))
-            // Handle xlim and ylim
+            .merge(paths)
+            .attr("d", path)
             .attr("transform", `translate(0, ${this.height}) scale(1, -1)`)
             .attr("fill", d => this.color(d.value))
             .attr("stroke", "#69b3a2")
             .attr("stroke-width", 1)
             .attr("opacity", 0.7);
+
+        paths.exit().remove();
+
+        this._updateColorbar(d3.extent(z));
+    }
+
+    _createColorbar() {
+        const colorbarHeight = this.height;
+        const colorScale = d3.scaleSequential(d3.interpolateViridis)
+            .domain([400, 0]);
+        const rectHeight = colorbarHeight / 400;
+
+        const colorbar = this.colorbarGroup.selectAll(".rect")
+            .data(d3.range(400))
+            .enter()
+            .append("rect")
+            .attr("class", "rect")
+            .attr("y", d => d * rectHeight)
+            .attr("x", 0)
+            .attr("height", rectHeight)
+            .attr("width", 20)
+            .attr("fill", d => colorScale(d));
+
+        const barScale = d3.scaleLinear()
+            .range([colorbarHeight, 0]);
+
+        this.colorbarAxis = d3.axisRight(barScale)
+            .ticks(6);
+
+        this.colorbarGroup.append("g")
+            .attr("class", "colorbar-axis")
+            .attr("transform", `translate(20, 0)`)
+            .call(this.colorbarAxis);
+    }
+
+    _updateColorbar(dataRange) {
+        const barScale = d3.scaleLinear()
+            .domain(this.zlim !== null ? this.zlim : this.color.domain())
+            .range([this.height, 0]);
+
+        this.colorbarAxis.scale(barScale);
+        this.colorbarGroup.select(".colorbar-axis").call(this.colorbarAxis);
+
+        const [dataMin, dataMax] = dataRange;
+
+        this.colorbarGroup.selectAll(".limit-line").remove();
+
+        if (this.zlim) {
+            this.colorbarGroup.append("line")
+                .attr("class", "limit-line")
+                .attr("x1", 0)
+                .attr("x2", 20)
+                .attr("y1", barScale(dataMin))
+                .attr("y2", barScale(dataMin))
+                .attr("stroke", "red")
+                .attr("stroke-width", 2);
+
+            this.colorbarGroup.append("line")
+                .attr("class", "limit-line")
+                .attr("x1", 0)
+                .attr("x2", 20)
+                .attr("y1", barScale(dataMax))
+                .attr("y2", barScale(dataMax))
+                .attr("stroke", "red")
+                .attr("stroke-width", 2);
+        }
     }
 
     bringToFront() {
