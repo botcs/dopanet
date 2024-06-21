@@ -17,18 +17,16 @@
         <input type="range" id="range" min="10" max="100" value="50">
         <span id="rangeValue">50</span>
         <br>
-        <button id="resetButton">Reset</button>
+        <button id="resetCanvasButton">Reset</button>
     </div>
     <canvas id="canvas"></canvas>
 
     <h2>Vanilla GAN</h2>
     <div>
-        <button id="trainButton">Train</button>
+        <button id="trainVanGANButton">Train</button>
+        <button id="resetVanGANButton">Reset Modell</button>
     </div>
-    <div id="vanillaGAN" class="GANBox">
-        <!-- <div id="vanillaGANLosses" class="plot"></div> -->
-        <!-- <div id="vanillaGANDecisionMap" class="plot"></div> -->
-    </div>
+    <div id="vanillaGAN" class="GANBox"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>

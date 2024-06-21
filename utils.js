@@ -12,7 +12,7 @@ class VisLogger {
     }) {
         tfvis.visor().close();
 
-        this.numUpdates = 0;
+        this.numItems = 0;
         this.X = [];
         this.Y = [];
         this.yLabel = yLabel;
@@ -77,12 +77,13 @@ class VisLogger {
         });
         this.chart.data.labels = this.X;
         this.chart.data.datasets[0].data = this.Y;
+        this.lastUpdate = performance.now();
     }
 
     push(data) {
-        var x, y;
+        let x, y;
         if (typeof data === "number") {
-            x = this.numUpdates;
+            x = this.numItems;
             y = data;
         } else {
             x = data.x;
@@ -90,9 +91,19 @@ class VisLogger {
         }
         this.X.push(x);
         this.Y.push(y);
+        if (performance.now() - this.lastUpdate > 50) {
+            this.chart.update();
+            this.lastUpdate = performance.now();
+        }
 
+        this.numItems++;
+    }
+
+    clear() {
+        this.X.length = 0;
+        this.Y.length = 0;
+        this.numItems = 0;
         this.chart.update();
-        this.numUpdates++;
     }
 
 }
@@ -132,6 +143,15 @@ class FPSCounter {
     log() {
         let elapsedTime = Math.floor((performance.now() - this.startTime)/1000);
         this.vislog.push({x: elapsedTime, y: this.lastFPS});
+    }
+
+    start() {
+        // Request animation frame
+        const loop = () => {
+            this.update();
+            requestAnimationFrame(loop);
+        }
+        loop();
     }
 }
 
@@ -176,8 +196,8 @@ class DynamicQuiverPlot {
             data = data.map(d => ({ x: d.x, y: d.y, u: d.u * scaleX, v: d.v * scaleY }));
         }
 
-        const xExtent = d3.extent(data, d => d.x+d.u);
-        const yExtent = d3.extent(data, d => d.y+d.v);
+        const xExtent = d3.extent(data, d => d.x);
+        const yExtent = d3.extent(data, d => d.y);
 
         if (this.xlim === null) {
             this.x = d3.scaleLinear().domain(xExtent).range([0, this.width]).clamp(true);
@@ -450,15 +470,14 @@ class DynamicDecisionMap {
         this.fakeDataPlot.bringToFront();
     }
 
-    plot(gan) {
+    plot(modelHandler) {
         // Randomly select 500 points from the real data
-        const realData = d3.shuffle(normalizedInputData).slice(0, 200);
+        const realData = d3.shuffle(modelHandler.inputData).slice(0, 200);
 
-        const fakeData = gan.generate(200);
+        const fakeData = modelHandler.generate(200);
         // const decisionMap = gan.decisionMap();
         // const gradientMap = gan.gradientMap();
-        const [decisionMap, gradientMap] = gan.decisionAndGradientMap();
-
+        const {decisionMap, gradientMap} = modelHandler.decisionAndGradientMap();
         const data = { realData, fakeData, decisionMap, gradientMap};
 
         this.update(data);

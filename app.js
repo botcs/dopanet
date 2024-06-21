@@ -1,98 +1,82 @@
 // app.js
+function main(){
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const pointsPerSecondInput = document.getElementById('pointsPerSecond');
+    const rangeInput = document.getElementById('range');
+    const resetCanvasButton = document.getElementById('resetCanvasButton');
+    const trainVanGANButton = document.getElementById('trainVanGANButton');
+    const resetVanGANButton = document.getElementById('resetVanGANButton');
+    const pointsPerSecondValue = document.getElementById('pointsPerSecondValue');
+    const rangeValue = document.getElementById('rangeValue');
 
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
-const pointsPerSecondInput = document.getElementById('pointsPerSecond');
-const rangeInput = document.getElementById('range');
-const resetButton = document.getElementById('resetButton');
-const trainButton = document.getElementById('trainButton');
-const initButton = document.getElementById('initButton');
-const pointsPerSecondValue = document.getElementById('pointsPerSecondValue');
-const rangeValue = document.getElementById('rangeValue');
+    const inputData = [];
+    const normalizedInputData = [];
 
-const inputData = [];
-const normalizedInputData = [];
+    const vanillaMH = new VanillaGANModelHandler(normalizedInputData);
 
-let isDrawing = false;
-let pointsPerSecond = parseInt(pointsPerSecondInput.value, 10);
-let range = parseInt(rangeInput.value, 10);
-let lastTime = 0;
-let mouseX = 0;
-let mouseY = 0;
+    let isDrawing = false;
+    let pointsPerSecond = parseInt(pointsPerSecondInput.value, 10);
+    let range = parseInt(rangeInput.value, 10);
+    let lastTime = 0;
+    let mouseX = 0;
+    let mouseY = 0;
 
-function generateGaussianPoints(cx, cy, stdDev, numPoints) {
-    const points = [];
-    for (let i = 0; i < numPoints; i++) {
-        const [dx, dy] = truncatedGaussian2D(stdDev);
-        points.push([cx + dx, cy + dy]);
+    function generateGaussianPoints(cx, cy, stdDev, numPoints) {
+        const points = [];
+        for (let i = 0; i < numPoints; i++) {
+            const [dx, dy] = truncatedGaussian2D(stdDev);
+            points.push([cx + dx, cy + dy]);
+        }
+        return points;
     }
-    return points;
-}
 
-function truncatedGaussian2D(stdDev) {
-    let u, v, s;
-    do {
-        u = Math.random() * 2 - 1;
-        v = Math.random() * 2 - 1;
-        s = u * u + v * v;
-    } while (s >= 1 || s === 0);
-    const mul = Math.sqrt(-2.0 * Math.log(s) / s);
+    function truncatedGaussian2D(stdDev) {
+        let u, v, s;
+        do {
+            u = Math.random() * 2 - 1;
+            v = Math.random() * 2 - 1;
+            s = u * u + v * v;
+        } while (s >= 1 || s === 0);
+        const mul = Math.sqrt(-2.0 * Math.log(s) / s);
 
-    // Truncate to 3 standard deviations.
-    if (Math.abs(u) > 3) u = 3 * Math.sign(u);
-    if (Math.abs(v) > 3) v = 3 * Math.sign(v);
-    
-    return [stdDev * u * mul, stdDev * v * mul];
-}
-
-// Drawing
-function scatterPoints(x, y) {
-    const newPoints = generateGaussianPoints(x, y, range / 3, pointsPerSecond);
-    newPoints.forEach(point => {
-        ctx.fillRect(point[0], point[1], 1, 1);
-        inputData.push(point);
-        normalizedInputData.push([point[0] / canvas.width * 2 - 1, -point[1] / canvas.height * 2 + 1]);
-    });
-}
-
-function drawCircle(x, y, radius) {
-    ctx.beginPath();
-    ctx.setLineDash([10, 10]);
-    // Set the stroke width to 2.
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'red';
-    ctx.arc(x, y, radius, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.strokeStyle = 'black';
-}
-
-function normalizeData(data) {
-    const X = data.map(p => p[0]);
-    const Y = data.map(p => p[1]);
-    // Use the canvas size as the normalization factor.
-    const normX = X.map(x => x / canvas.width * 2 - 1);
-    const normY = Y.map(y => y / canvas.height * 2 - 1);
-
-    // Flip the Y axis.
-    const flippedY = normY.map(y => -y);
-
-    const ret = [];
-    for (let i = 0; i < X.length; i++) {
-        ret.push([normX[i], flippedY[i]]);
+        // Truncate to 3 standard deviations.
+        if (Math.abs(u) > 3) u = 3 * Math.sign(u);
+        if (Math.abs(v) > 3) v = 3 * Math.sign(v);
+        
+        return [stdDev * u * mul, stdDev * v * mul];
     }
-    return ret;
-}
 
-function getTouchPos(canvas, touchEvent) {
-    const rect = canvas.getBoundingClientRect();
-    return {
-        x: touchEvent.touches[0].clientX - rect.left,
-        y: touchEvent.touches[0].clientY - rect.top
-    };
-}
+    // Drawing
+    function scatterPoints(x, y) {
+        const newPoints = generateGaussianPoints(x, y, range / 3, pointsPerSecond);
+        newPoints.forEach(point => {
+            ctx.fillRect(point[0], point[1], 1, 1);
+            inputData.push(point);
+            normalizedInputData.push([point[0] / canvas.width * 2 - 1, -point[1] / canvas.height * 2 + 1]);
+        });
+    }
 
-document.addEventListener('DOMContentLoaded', () => {
+    function drawCircle(x, y, radius) {
+        ctx.beginPath();
+        ctx.setLineDash([10, 10]);
+        // Set the stroke width to 2.
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'red';
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = 'black';
+    }
+
+    function getTouchPos(canvas, touchEvent) {
+        const rect = canvas.getBoundingClientRect();
+        return {
+            x: touchEvent.touches[0].clientX - rect.left,
+            y: touchEvent.touches[0].clientY - rect.top
+        };
+    }
+
     // Set canvas size and scaling
     const canvasStyle = window.getComputedStyle(canvas);
     canvas.width = parseInt(canvasStyle.width, 10);
@@ -108,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
         rangeValue.textContent = range;
     });
 
-    resetButton.addEventListener('click', () => {
+    resetCanvasButton.addEventListener('click', () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         // Clear the points array.
         inputData.length = 1;
@@ -116,13 +100,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 
-    trainButton.addEventListener('click', () => {
-        trainToggleVanillaGAN();
-        if (window.gan.isTraining) {
-            trainButton.textContent = 'Stop Training';
+    trainVanGANButton.addEventListener('click', () => {
+        vanillaMH.trainToggle(normalizedInputData);
+        if (trainVanGANButton.textContent !== 'Stop Training') {
+            trainVanGANButton.textContent = 'Stop Training';
         } else {
-            trainButton.textContent = 'Resume Training';
+            trainVanGANButton.textContent = 'Resume Training';
         }
+    });
+
+    resetVanGANButton.addEventListener('click', () => {
+        vanillaMH.reset();
     });
 
     canvas.addEventListener('mousedown', (event) => {
@@ -202,8 +190,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    initVanillaGAN();
-
     // Set up periodic printing of the number of tensors
     window.numTensorLogger = new VisLogger({
         name: "Number of Tensors over Time",
@@ -213,7 +199,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     window.startTime = performance.now();
     setInterval(() => {
-        const elapsed = Math.floor((performance.now() - this.startTime) / 1000);
-        window.numTensorLogger.push({ x: elapsed, y: tf.memory().numTensors });
-    }, 5000);
-});
+        const elapsed = Math.floor((performance.now() - window.startTime) / 1000);
+        window.numTensorLogger.push({x: elapsed, y: tf.memory().numTensors});
+    }, 2000);
+
+    // Set up periodic FPS logging
+    window.fps = new FPSCounter("Main Loop FPS", 2000);
+    window.fps.start();
+}
+
+
+document.addEventListener('DOMContentLoaded', main);

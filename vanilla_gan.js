@@ -12,7 +12,7 @@ function buildGenerator(latentDim, numLayers = 4, startDim = 128) {
     }
 
     // generator.add(tf.layers.layerNormalization());
-    generator.add(tf.layers.dense({ units: 2, activation: 'tanh' })); // Output layer for 2D points
+    generator.add(tf.layers.dense({ units: 2, activation: 'linear' })); // Output layer for 2D points
     return generator;
 }
 
@@ -44,23 +44,23 @@ function generateFakeSamples(generator, latentDim, nSamples) {
 }
 
 
-async function initVanillaGAN() {
-    window.gan = new VanillaGAN();
-    await window.gan.init();
-}
+// Function to reset the weights
+async function resetWeights(model, initializerName = 'glorotNormal') {
+    for (let layer of model.layers) {
+        if (layer.getWeights().length > 0) {
+            // Get the shape of the weights
+            const originalWeights = layer.getWeights();
+            const resetWeights = originalWeights.map(weight => {
+                const shape = weight.shape;
+                return tf.initializers[initializerName]().apply(shape);
+            });
 
-async function trainToggleVanillaGAN() {
-    if (!window.gan) await initVanillaGAN();
-
-    const ddm = new DynamicDecisionMap({
-        div:"#vanillaGAN",
-        xlim:[-1, 1], 
-        ylim:[-1, 1],
-        zlim:[0, 1]
-    });
-    const callback = (iter, gLoss, dLoss) => ddm.plot(gan);
-    window.gan.trainToggle(callback);
-}
+            // Set the weights
+            layer.setWeights(resetWeights);
+        }
+    }
+  }
+  
 
 class VanillaGAN {
     constructor(
@@ -109,38 +109,44 @@ class VanillaGAN {
             yLabel: 'Loss',
         });
         
-        this.gridSize = 20;
-        const x = tf.linspace(-1, 1, this.gridSize);
-        const y = tf.linspace(-1, 1, this.gridSize);
-        const grid = tf.meshgrid(x, y);
-        this.decisionMapInputBuff = tf.stack([grid[0].flatten(), grid[1].flatten()], 1);
-        tf.dispose([x, y, grid]);
+        this.realSamplesBuff = tf.buffer([this.batchSize, 2]);
 
         this.isTraining = false;
     }
 
-    async trainToggle(callback = null) {
+    async resetParams() {
+        // reset the weights and biases of the generator and discriminator
+        
+        // await together for both models
+        await Promise.all([
+            resetWeights(this.generator), 
+            resetWeights(this.discriminator)
+        ]);
+        
+
+        this.gLossVisor.clear();
+        this.dLossVisor.clear();
+    }
+
+    async trainToggle(data, callback = null) {
         if (this.isTraining) {
             this.isTraining = false;
             return;
         }
 
         this.isTraining = true;
-        // const dataTensor = tf.tensor2d(trainData);
-        const halfBatch = Math.floor(this.batchSize / 2);
-        const realSamplesBuff = tf.buffer([halfBatch, 2]);
         let iter = 0;
         while (this.isTraining) {
-            for (let i = 0; i < halfBatch; i++) {
-                const [x, y] = normalizedInputData[Math.floor(Math.random() * normalizedInputData.length)]
-                realSamplesBuff.set(x, i, 0);
-                realSamplesBuff.set(y, i, 1);
+            for (let i = 0; i < this.batchSize; i++) {
+                const [x, y] = data[Math.floor(Math.random() * data.length)]
+                this.realSamplesBuff.set(x, i, 0);
+                this.realSamplesBuff.set(y, i, 1);
             }
-            const realSamples = realSamplesBuff.toTensor();
-            const fakeSamples = generateFakeSamples(this.generator, this.latentDim, halfBatch);
+            const realSamples = this.realSamplesBuff.toTensor();
+            const fakeSamples = generateFakeSamples(this.generator, this.latentDim, this.batchSize);
 
-            const realLabels = tf.ones([halfBatch, 1]);
-            const fakeLabels = tf.zeros([halfBatch, 1]);
+            const realLabels = tf.ones([this.batchSize, 1]);
+            const fakeLabels = tf.zeros([this.batchSize, 1]);
 
             const dInputs = tf.concat([realSamples, fakeSamples]);
             const dLabels = tf.concat([realLabels, fakeLabels]);
@@ -153,9 +159,6 @@ class VanillaGAN {
 
             this.discriminator.trainable = false;
             const gLoss = await this.gan.trainOnBatch(latentPoints, misleadingLabels);
-
-            // this.gLossVisor.push({ x: iter, y: gLoss });
-            // this.dLossVisor.push({ x: iter, y: dLoss });
 
             if (callback) callback(iter, gLoss, dLoss);
 
@@ -184,44 +187,66 @@ class VanillaGAN {
     dispose() {
         tf.dispose([this.generator, this.discriminator, this.gan]);
     }
+}
 
-    // FRONTEND STUFF
-    decisionMap() { return tf.tidy(() => {
-        const points = this.decisionMapInputBuff;
-        const predictions = this.discriminator.predict(points).reshape([this.gridSize, this.gridSize]);
-        const ret = predictions.arraySync();
-        return ret;
-    });}
-        
-    gradientMap(gridSize = 20) { return tf.tidy(() => {
-        const x = tf.linspace(-1, 1, gridSize);
-        const y = tf.linspace(-1, 1, gridSize);
-        const grid = tf.meshgrid(x, y);
-        const points = tf.stack([grid[0].flatten(), grid[1].flatten()], 1);
-        
-        // Calculate gradients of discriminator output with respect to input points
-        const gradients = tf.grad(point => this.discriminator.predict(point))(points);
-        // const grads = gradients.reshape([gridSize, gridSize, 2]).arraySync();
-        // return { x: x.arraySync(), y: y.arraySync(), z: grads };
-
-        const xyuv = tf.concat([points, gradients], 1).reshape([gridSize, gridSize, 4]).arraySync();
-        return xyuv;
-    });}
-
-    decisionAndGradientMap() { 
-        return tf.tidy(() => {
-            const points = this.decisionMapInputBuff;
-    
-            // Use tf.valueAndGrad to get both predictions and gradients
-            const res = tf.valueAndGrad(point => this.discriminator.predict(point))(points);
-            
-            const predictions = res.value.reshape([this.gridSize, this.gridSize]);
-
-            const xyuv = tf.concat([points, res.grad], 1).reshape([this.gridSize, this.gridSize, 4]);
-            const ret = [predictions.arraySync(), xyuv.arraySync()];
-    
-            return ret;
+class VanillaGANModelHandler {
+    constructor(inputData) {
+        this.inputData = inputData;
+        this.gan = new VanillaGAN();
+        this.ddm = new DynamicDecisionMap({
+            div: '#vanillaGAN',
+            xlim: [-1, 1],
+            ylim: [-1, 1],
+            zlim: [0, 1],
         });
+
+        this.isInitialized = false;
+    }
+    async init() {
+        await this.gan.init();
+        this.callback = (iter, gLoss, dLoss) => {
+            this.gan.gLossVisor.push({ x: iter, y: gLoss });
+            this.gan.dLossVisor.push({ x: iter, y: dLoss });
+            this.ddm.plot(this);
+        }
+
+        this.gridSize = 20;
+        const x = tf.linspace(-1, 1, this.gridSize);
+        const y = tf.linspace(-1, 1, this.gridSize);
+        const grid = tf.meshgrid(x, y);
+        this.decisionMapInputBuff = tf.stack([grid[0].flatten(), grid[1].flatten()], 1);
+        tf.dispose([x, y, grid]);
+
+        this.isInitialized = true;
     }
 
+    generate(nSamples) { return this.gan.generate(nSamples) }
+
+
+    decisionAndGradientMap() { return tf.tidy(() => {
+        const points = this.decisionMapInputBuff;
+
+        // Use tf.valueAndGrad to get both predictions and gradients
+        const res = tf.valueAndGrad(point => this.gan.discriminator.predict(point))(points);
+        
+        const pred2D = res.value.reshape([this.gridSize, this.gridSize]);
+
+        const xyuv = tf.concat([points, res.grad], 1);
+        const xyuv2D = xyuv.reshape([this.gridSize, this.gridSize, 4]);
+        const ret = { 
+            decisionMap: pred2D.arraySync(), 
+            gradientMap: xyuv2D.arraySync() 
+        };
+        return ret;
+    });}
+
+    async trainToggle(data) {
+        if (!this.isInitialized) await this.init();
+        this.gan.trainToggle(data, this.callback);
+    }
+
+    async reset() {
+        this.gan.resetParams();
+        this.ddm.plot(this);
+    }
 }
