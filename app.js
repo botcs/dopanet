@@ -6,6 +6,7 @@ const pointsPerSecondInput = document.getElementById('pointsPerSecond');
 const rangeInput = document.getElementById('range');
 const resetButton = document.getElementById('resetButton');
 const trainButton = document.getElementById('trainButton');
+const initButton = document.getElementById('initButton');
 const pointsPerSecondValue = document.getElementById('pointsPerSecondValue');
 const rangeValue = document.getElementById('rangeValue');
 
@@ -114,8 +115,14 @@ document.addEventListener('DOMContentLoaded', () => {
         normalizedInputData.length = 1;
     });
 
+
     trainButton.addEventListener('click', () => {
-        testVanillaGAN();
+        trainToggleVanillaGAN();
+        if (window.gan.isTraining) {
+            trainButton.textContent = 'Stop Training';
+        } else {
+            trainButton.textContent = 'Resume Training';
+        }
     });
 
     canvas.addEventListener('mousedown', (event) => {

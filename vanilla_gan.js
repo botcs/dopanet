@@ -3,32 +3,32 @@
 // Generator Model
 function buildGenerator(latentDim, numLayers = 4, startDim = 128) {
     const generator = tf.sequential();
-    generator.add(tf.layers.dense({ units: startDim, inputShape: [latentDim], activation: 'linear' }));
+    generator.add(tf.layers.dense({ units: startDim, inputShape: [latentDim], activation: 'relu' }));
 
     for (let i = 1; i < numLayers; i++) {
         // add batch normalization
         // generator.add(tf.layers.layerNormalization());
-        generator.add(tf.layers.dense({ units: startDim * Math.pow(2, i), activation: 'selu'}));
+        generator.add(tf.layers.dense({ units: startDim * Math.pow(2, i), activation: 'relu'}));
     }
 
     // generator.add(tf.layers.layerNormalization());
-    generator.add(tf.layers.dense({ units: 2, activation: 'linear' })); // Output layer for 2D points
+    generator.add(tf.layers.dense({ units: 2, activation: 'tanh' })); // Output layer for 2D points
     return generator;
 }
 
 // Discriminator Model
 function buildDiscriminator(numLayers = 4, startDim = 512) {
     const discriminator = tf.sequential();
-    discriminator.add(tf.layers.dense({ units: startDim, inputShape: [2], activation: 'linear' }));
+    discriminator.add(tf.layers.dense({ units: startDim, inputShape: [2], activation: 'relu' }));
 
     for (let i = 1; i < numLayers; i++) {
         // discriminator.add(tf.layers.layerNormalization());
-        discriminator.add(tf.layers.dense({ units: startDim / Math.pow(2, i), activation: 'selu'}));
+        discriminator.add(tf.layers.dense({ units: startDim / Math.pow(2, i), activation: 'relu'}));
     }
 
     discriminator.add(tf.layers.dense({ units: 1, activation: 'sigmoid' })); // Output layer
     discriminator.compile({
-        optimizer: tf.train.adam(0.0001),
+        optimizer: tf.train.adam(0.0005),
         // optimizer: tf.train.sgd(0.001),
         loss: 'binaryCrossentropy',
     });
@@ -49,33 +49,27 @@ async function initVanillaGAN() {
     await window.gan.init();
 }
 
-async function testVanillaGAN() {
-    const ddm = new DynamicDecisionMap(
-        "#vanillaGAN",
-        [-1, 1], [-1, 1],
-        [0, 1]
-    );
-    window.gan.numIter = 1000;
-    for (let i = 0; i < 1000; i++) {
-        const callback = (iter, gLoss, dLoss) => {
-            if (iter % 1 === 0) {
-                ddm.plot(gan);
-            }
-        };
-        await window.gan.train(callback);
-        
-    }
+async function trainToggleVanillaGAN() {
+    if (!window.gan) await initVanillaGAN();
+
+    const ddm = new DynamicDecisionMap({
+        div:"#vanillaGAN",
+        xlim:[-1, 1], 
+        ylim:[-1, 1],
+        zlim:[0, 1]
+    });
+    const callback = (iter, gLoss, dLoss) => ddm.plot(gan);
+    window.gan.trainToggle(callback);
 }
 
 class VanillaGAN {
     constructor(
         {
             latentDim = 100,
-            genLayers = 4,
-            genStartDim = 128,
-            discLayers = 4,
-            discStartDim = 512,
-            numIter = 100,
+            genLayers = 1,
+            genStartDim = 1024,
+            discLayers = 1,
+            discStartDim = 1024,
             batchSize = 64
         } = {}
     ) {
@@ -87,7 +81,6 @@ class VanillaGAN {
         this.genStartDim = genStartDim;
         this.discLayers = discLayers;
         this.discStartDim = discStartDim;
-        this.numIter = numIter;
         this.batchSize = batchSize;
     }
 
@@ -99,7 +92,7 @@ class VanillaGAN {
         this.gan.add(this.discriminator);
         this.gan.compile({
             // optimizer: tf.train.sgd(0.001),
-            optimizer: tf.train.adam(0.001),
+            optimizer: tf.train.adam(0.0001),
             loss: 'binaryCrossentropy',
         });
 
@@ -126,14 +119,18 @@ class VanillaGAN {
         this.isTraining = false;
     }
 
-    async train(callback = null) {
-        if (this.isTraining) return;
+    async trainToggle(callback = null) {
+        if (this.isTraining) {
+            this.isTraining = false;
+            return;
+        }
+
         this.isTraining = true;
-        
         // const dataTensor = tf.tensor2d(trainData);
         const halfBatch = Math.floor(this.batchSize / 2);
         const realSamplesBuff = tf.buffer([halfBatch, 2]);
-        for (let iter = 0; iter < this.numIter; iter++) {
+        let iter = 0;
+        while (this.isTraining) {
             for (let i = 0; i < halfBatch; i++) {
                 const [x, y] = normalizedInputData[Math.floor(Math.random() * normalizedInputData.length)]
                 realSamplesBuff.set(x, i, 0);
@@ -172,7 +169,9 @@ class VanillaGAN {
                 latentPoints, 
                 misleadingLabels,
             ]);
+            iter++;
         }
+        this.isTraining = false;
     }
 
     generate(nSamples) { return tf.tidy(() => {

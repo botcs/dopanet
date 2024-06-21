@@ -409,7 +409,7 @@ class DynamicScatterPlot {
 
 // DynamicDecisionMap class
 class DynamicDecisionMap {
-    constructor(div, xlim = null, ylim = null, zlim = null) {
+    constructor({div, xlim = null, ylim = null, zlim = null}={}) {
         // Find the svg if doesn't exist create one
         this.svg = d3.select(div).select("svg");
         if (this.svg.empty()) {
