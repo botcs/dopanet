@@ -6,6 +6,7 @@ class VisLogger {
         tab = "History",
         xLabel = "Iteration",
         yLabel = "Y",
+        drawArea = null,
         height = 300,
         maxSize = 150,
     }) {
@@ -15,16 +16,20 @@ class VisLogger {
         this.X = [];
         this.Y = [];
         this.yLabel = yLabel;
-        this.surface = tfvis.visor().surface({ name: name, tab: tab });
         this.axisSettings = { xLabel: xLabel, yLabel: yLabel, height: height };
         this.maxSize = maxSize;
         this.lastUpdateTime = 0;
         this.timeoutId = null;
-
+        
         // Create a canvas element for Chart.js
         this.canvas = document.createElement('canvas');
-        this.surface.drawArea.appendChild(this.canvas);
-
+        if (drawArea) {
+            drawArea.appendChild(this.canvas);
+        } else {
+            this.surface = tfvis.visor().surface({ name: name, tab: tab });
+            this.surface.drawArea.appendChild(this.canvas);
+        }
+        
         this.chart = new Chart(this.canvas, {
             type: 'line',
             data: {
@@ -86,66 +91,10 @@ class VisLogger {
         this.X.push(x);
         this.Y.push(y);
 
-        // if (this.X.length > this.maxSize) {
-        //     const points = this.X.map((x, index) => ({ x, y: this.Y[index] }));
-        //     const numReducedPoints = Math.floor(this.maxSize * 0.7);
-        //     const reducedPoints = this.largestTriangleThreeBuckets(points, numReducedPoints);
-
-        //     this.X = reducedPoints.map(p => p.x);
-        //     this.Y = reducedPoints.map(p => p.y);
-
-        //     this.chart.data.labels = this.X;
-        //     this.chart.data.datasets[0].data = this.Y;
-        // }
-
         this.chart.update();
         this.numUpdates++;
     }
 
-    largestTriangleThreeBuckets(data, threshold) {
-        if (threshold >= data.length || threshold === 0) {
-            return data; // No subsampling needed
-        }
-
-        const sampled = [];
-        const bucketSize = (data.length - 2) / (threshold - 2);
-        let a = 0; // Initially the first point is included
-        let maxArea;
-        let area;
-        let nextA;
-
-        sampled.push(data[a]); // Always include the first point
-
-        for (let i = 0; i < threshold - 2; i++) {
-            const avgRangeStart = Math.floor((i + 1) * bucketSize) + 1;
-            const avgRangeEnd = Math.floor((i + 2) * bucketSize) + 1;
-            const avgRange = data.slice(avgRangeStart, avgRangeEnd);
-            
-            const avgX = avgRange.reduce((sum, point) => sum + point.x, 0) / avgRange.length;
-            const avgY = avgRange.reduce((sum, point) => sum + point.y, 0) / avgRange.length;
-            
-            const rangeStart = Math.floor(i * bucketSize) + 1;
-            const rangeEnd = Math.floor((i + 1) * bucketSize) + 1;
-            const range = data.slice(rangeStart, rangeEnd);
-
-            maxArea = -1;
-
-            for (let j = 0; j < range.length; j++) {
-                area = Math.abs((data[a].x - avgX) * (range[j].y - data[a].y) -
-                                (data[a].x - range[j].x) * (avgY - data[a].y));
-                if (area > maxArea) {
-                    maxArea = area;
-                    nextA = rangeStart + j;
-                }
-            }
-
-            sampled.push(data[nextA]); // Include the point with the largest area
-            a = nextA; // Set a to the selected point
-        }
-
-        sampled.push(data[data.length - 1]); // Always include the last point
-        return sampled;
-    }
 }
 
 class FPSCounter {
@@ -181,82 +130,189 @@ class FPSCounter {
     }
 
     log() {
-        // console.log(`${this.name} - moving avg FPS: ${this.lastFPS.toFixed(2)}`);
-        // console.log(`Number of tensors: ${tf.memory().numTensors}`);
         let elapsedTime = Math.floor((performance.now() - this.startTime)/1000);
         this.vislog.push({x: elapsedTime, y: this.lastFPS});
     }
 }
 
-// PLOTLY
-function plotDecisionBoundary(gan) {
-    let realData = gan.trainData;
-    // sample 100 points from the real data
-    // shuffle the data
-    tf.util.shuffle(realData);
-    realData = realData.slice(0, 100);
+class DynamicContourPlot {
+    constructor(svg, xlim = null, ylim = null, zlim = null) {
+        this.width = svg.attr("width");
+        this.height = svg.attr("height");
+        this.svg = svg;
+        this.mainGroup = svg.append("g");
 
-    const realDataX = realData.map(p => p[0]);
-    const realDataY = realData.map(p => p[1]);
-    const fakeData = gan.generate(100);
-    const fakeDataX = fakeData.map(p => p[0]);
-    const fakeDataY = fakeData.map(p => p[1]);
-    const decisionData = gan.decisionMap();
+        this.color = d3.scaleSequential(d3.interpolateViridis)
+            .domain(zlim !== null ? zlim : [0, 1]);
 
+        this.xlim = xlim;
+        this.ylim = ylim;
+        this.zlim = zlim;
+    }
 
-    // Real data scatter with white color
-    const realScatter = {
-        x: realDataX,
-        y: realDataY,
-        mode: "markers",
-        type: "scatter",
-        name: "Real Data",
-        marker: {color: "black", size: 4},
-        showlegend: false,
-        hovermode: false,
-        opacity: 0.8,
-    };
+    update(z) {
+        const shape = [z.length, z[0].length];
+        // flatten z
+        z = z.flat();
 
-    // Fake data scatter with red color
-    const fakeScatter = {
-        x: fakeDataX,
-        y: fakeDataY,
-        mode: "markers",
-        type: "scatter",
-        name: "Fake Data",
-        marker: {color: "red", size: 4},
-        showlegend: false,
-        hovermode: false,
-        opacity: 0.8,
-    };
+        let contours;
+        // if (this.zlim !== null) {
+        //     contours = d3.contours()
+        //         .size(shape)
+        //         .thresholds(
+        //             d3.range(
+        //                 this.zlim[0],
+        //                 this.zlim[1],
+        //                 (this.zlim[1] - this.zlim[0]) / 10
+        //             )
+        //         )(z);
+        // } else {
+            contours = d3.contours()
+                .size(shape)
+                (z);
+        // }
 
+        // Clear previous contours
+        this.mainGroup.selectAll("path").remove();
 
-    // Contour plot of the decision boundary
-    const decisionContour = {
-        x: decisionData.x,
-        y: decisionData.y,
-        z: decisionData.z,
-        type: "contour",
-        colorscale: "Viridis",
-        showscale: false,
-        hovermode: false,
-        opacity: 0.7,
-    };
+        // Add contours to the svg
+        this.mainGroup.selectAll("path")
+            .data(contours)
+            .enter()
+            .append("path")
+            .attr("d", d3.geoPath(d3.geoIdentity().scale(this.width / shape[0])))
+            // Handle xlim and ylim
+            .attr("transform", `translate(0, ${this.height}) scale(1, -1)`)
+            .attr("fill", d => this.color(d.value))
+            .attr("stroke", "#69b3a2")
+            .attr("stroke-width", 1)
+            .attr("opacity", 0.7);
+    }
 
-    const layout = {
-        title: "Decision Boundary",
-        xaxis: {title: 'X', range: [-1, 1]},
-        yaxis: {title: 'Y', range: [-1, 1]},
-        width: 800,
-        height: 600,
-    };
-    // use preexisting div
-    const plotDiv = document.getElementById("vanillaGAN");
-    Plotly.newPlot(
-        plotDiv, 
-        [decisionContour, realScatter, fakeScatter],
-        // [realScatter],
-        layout
-    );
+    bringToFront() {
+        this.mainGroup.raise();
+    }
 }
 
+// DynamicScatterPlot class
+class DynamicScatterPlot {
+    constructor(svg, color = "#69b3a2", xlim = null, ylim = null) {
+        this.width = svg.attr("width");
+        this.height = svg.attr("height");
+        this.svg = svg;
+        this.mainGroup = svg.append("g");
+
+        this.xScale = d3.scaleLinear().range([0, this.width]);
+        this.yScale = d3.scaleLinear().range([this.height, 0]);
+
+
+        this.color = color;
+        this.xlim = xlim;
+        this.ylim = ylim;
+    }
+
+    update(data) {
+        // handle xlim and ylim
+        if (this.xlim !== null) {
+            this.xScale.domain(this.xlim);
+        } else {
+            this.xScale.domain(d3.extent(data, d => d[0]));
+        }
+        if (this.ylim !== null) {
+            this.yScale.domain(this.ylim);
+        } else {
+            this.yScale.domain(d3.extent(data, d => d[1]));
+        }
+        // Bind data to existing circles
+        const circles = this.mainGroup.selectAll("circle").data(data);
+
+        // console.log(this.xScale.domain(), this.yScale.domain());
+        // console.log(this.xScale.range(), this.yScale.range());
+        // console.log(this.xScale(data[0][0]), this.yScale(data[0][1]));
+
+        // Update existing circles
+        circles
+            .attr("cx", d => this.xScale(d[0]))
+            .attr("cy", d => this.yScale(d[1]))
+            .attr("r", 3)
+            .attr("fill", this.color)
+            .attr("stroke", "#000")
+            .attr("stroke-width", 1)
+            .attr("opacity", 0.7);
+
+        // Enter new circles
+        circles.enter()
+            .append("circle")
+            .attr("cx", d => this.xScale(d[0]))
+            .attr("cy", d => this.yScale(d[1]))
+            .attr("r", 3)
+            .attr("fill", this.color)
+            .attr("stroke", "#000")
+            .attr("stroke-width", 1)
+            .attr("opacity", 0.7);
+
+        // Remove circles that are no longer needed
+        circles.exit().remove();
+
+    }
+
+    bringToFront() {
+        this.mainGroup.raise();
+    }
+}
+
+// DynamicDecisionMap class
+class DynamicDecisionMap {
+    constructor(div, xlim = null, ylim = null, zlim = null) {
+        // Find the svg if doesn't exist create one
+        this.svg = d3.select(div).select("svg");
+        if (this.svg.empty()) {
+            this.svg = d3.select(div).append("svg");
+        }
+
+        // Infer width and height
+        const width = parseInt(this.svg.style("width"));
+        const height = parseInt(this.svg.style("height"));
+
+        // Set attributes
+        this.svg
+            .attr("width", width)
+            .attr("height", height);
+
+
+        this.contourPlot = new DynamicContourPlot(this.svg, xlim, ylim, zlim);
+        this.realDataPlot = new DynamicScatterPlot(this.svg, "black", xlim, ylim);
+        this.fakeDataPlot = new DynamicScatterPlot(this.svg, "orange", xlim, ylim);
+
+    }
+
+    update(data) {
+        const { realData, fakeData, decisionMap } = data;
+
+        this.contourPlot.update(decisionMap);
+        this.realDataPlot.update(realData);
+        this.fakeDataPlot.update(fakeData);
+    }
+
+    bringToFront() {
+        this.contourPlot.bringToFront();
+        this.realDataPlot.bringToFront();
+        this.fakeDataPlot.bringToFront();
+    }
+
+    plot(gan) {
+        // Randomly select 500 points from the real data
+        const realData = d3.shuffle(normalizedInputData).slice(0, 200);
+
+        const fakeData = gan.generate(200);
+        const decisionData = gan.decisionMap();
+
+        const data = {
+            realData: realData,
+            fakeData: fakeData,
+            decisionMap: decisionData
+        };
+
+        this.update(data);
+    }
+}

@@ -20,16 +20,19 @@
         <button id="resetButton">Reset</button>
         <button id="trainButton">Train</button>
     </div>
-    <canvas id="canvas" width="800" height="600"></canvas>
+    <canvas id="canvas"></canvas>
 
     <h2>Vanilla GAN</h2>
-    <div id="vanillaGAN" width="800", height="600">
+    <div id="vanillaGAN" class="GANBox">
+        <!-- <div id="vanillaGANLosses" class="plot"></div> -->
+        <!-- <div id="vanillaGANDecisionMap" class="plot"></div> -->
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <!-- <script src="https://cdn.plot.ly/plotly-latest.min.js"></script> -->
+    <script src="https://d3js.org/d3.v5.min.js"></script>
     <script src="vanilla_gan.js"></script>
     <script src="utils.js"></script>
     <script src="app.js"></script>

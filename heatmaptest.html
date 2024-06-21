@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dynamic Decision Map Example</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .chart-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="chart-container">
+        <div id="chart"></div>
+    </div>
+
+    <script>
+        // DynamicContourPlot class
+        class DynamicContourPlot {
+            constructor(svg, minThreshold = -1, maxThreshold = 1, numBands = 10) {
+                this.width = svg.attr("width");
+                this.height = svg.attr("height");
+                this.svg = svg;
+                this.mainGroup = svg.append("g");
+
+                this.color = d3.scaleSequential(d3.interpolateViridis)
+                    .domain([minThreshold, maxThreshold]);
+
+                this.minThreshold = minThreshold;
+                this.maxThreshold = maxThreshold;
+                this.numBands = numBands;
+            }
+
+            update(data, shape) {
+                const { z } = data;
+
+                const contours = d3.contours()
+                    .size(shape)
+                    .thresholds(d3.range(this.minThreshold, this.maxThreshold, (this.maxThreshold - this.minThreshold) / this.numBands))
+                    (z);
+
+                // Clear previous contours
+                this.mainGroup.selectAll("path").remove();
+
+                // Add contours to the svg
+                this.mainGroup.selectAll("path")
+                    .data(contours)
+                    .enter()
+                    .append("path")
+                    .attr("d", d3.geoPath(d3.geoIdentity().scale(this.width / shape[0])))
+                    .attr("fill", d => this.color(d.value))
+                    .attr("stroke", "#69b3a2")
+                    .attr("stroke-width", 1)
+                    .attr("opacity", 0.7);
+            }
+
+            bringToFront() {
+                this.mainGroup.raise();
+            }
+        }
+
+        // DynamicScatterPlot class
+        class DynamicScatterPlot {
+            constructor(svg, color = "#69b3a2") {
+                this.width = svg.attr("width");
+                this.height = svg.attr("height");
+                this.svg = svg;
+                this.mainGroup = svg.append("g");
+
+                this.xScale = d3.scaleLinear().range([0, this.width]);
+                this.yScale = d3.scaleLinear().range([this.height, 0]);
+
+                this.color = color;
+            }
+
+            update(data) {
+                const { x, y } = data;
+
+                this.xScale.domain(d3.extent(x));
+                this.yScale.domain(d3.extent(y));
+
+                this.mainGroup.selectAll("circle").remove();
+
+                this.mainGroup.selectAll("circle")
+                    .data(x.map((d, i) => ({ x: d, y: y[i] })))
+                    .enter()
+                    .append("circle")
+                    .attr("cx", d => this.xScale(d.x))
+                    .attr("cy", d => this.yScale(d.y))
+                    .attr("r", 3)
+                    .attr("fill", this.color)
+                    .attr("stroke", "#000")
+                    .attr("stroke-width", 1)
+                    .attr("opacity", 0.7);
+            }
+
+            bringToFront() {
+                this.mainGroup.raise();
+            }
+        }
+
+        // DynamicDecisionMap class
+        class DynamicDecisionMap {
+            constructor(div) {
+                this.svg = d3.select(div).append("svg")
+                    .attr("width", 500)
+                    .attr("height", 500);
+
+                this.contourPlot = new DynamicContourPlot(this.svg);
+                this.realDataPlot = new DynamicScatterPlot(this.svg, "black");
+                this.fakeDataPlot = new DynamicScatterPlot(this.svg, "orange");
+            }
+
+            update(dataTuple) {
+                const [decisionMap, realData, fakeData] = dataTuple;
+
+                const { x: realX, y: realY } = realData;
+                const { x: fakeX, y: fakeY } = fakeData;
+                const { x, y, z } = decisionMap;
+
+                const shape = [y.length, x.length];
+                
+                if (z.length !== shape[0] * shape[1]) {
+                    throw new Error("Shape of z does not match inferred shape from x and y");
+                }
+
+                this.contourPlot.update({ z: z }, shape);
+                this.realDataPlot.update(realData);
+                this.fakeDataPlot.update(fakeData);
+            }
+
+            bringToFront() {
+                this.contourPlot.bringToFront();
+                this.realDataPlot.bringToFront();
+                this.fakeDataPlot.bringToFront();
+            }
+        }
+
+        // Example data
+        const decisionMap = {
+            x: d3.range(-10, 10, 0.5),
+            y: d3.range(-10, 10, 0.5),
+            z: []
+        };
+
+        decisionMap.y.forEach((y) => {
+            decisionMap.x.forEach((x) => {
+                const value = Math.sin(Math.sqrt(x * x + y * y));
+                decisionMap.z.push(value);
+            });
+        });
+
+        const realData = {
+            x: d3.range(-10, 10, 1).map(d => d + Math.random()),
+            y: d3.range(-10, 10, 1).map(d => d + Math.random())
+        };
+
+        const fakeData = {
+            x: d3.range(-10, 10, 1).map(d => d + Math.random() * 2),
+            y: d3.range(-10, 10, 1).map(d => d + Math.random() * 2)
+        };
+
+        const decisionMapData = [decisionMap, realData, fakeData];
+
+        // Create and update the DynamicDecisionMap
+        const chartDiv = document.getElementById('chart');
+        const decisionMapChart = new DynamicDecisionMap(chartDiv);
+        decisionMapChart.update(decisionMapData);
+    </script>
+</body>
+</html>

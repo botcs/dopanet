@@ -10,6 +10,7 @@ const pointsPerSecondValue = document.getElementById('pointsPerSecondValue');
 const rangeValue = document.getElementById('rangeValue');
 
 const inputData = [];
+const normalizedInputData = [];
 
 let isDrawing = false;
 let pointsPerSecond = parseInt(pointsPerSecondInput.value, 10);
@@ -45,10 +46,11 @@ function truncatedGaussian2D(stdDev) {
 
 // Drawing
 function scatterPoints(x, y) {
-    const newPoints = generateGaussianPoints(x, y, range/3, pointsPerSecond);
+    const newPoints = generateGaussianPoints(x, y, range / 3, pointsPerSecond);
     newPoints.forEach(point => {
         ctx.fillRect(point[0], point[1], 1, 1);
         inputData.push(point);
+        normalizedInputData.push([point[0] / canvas.width * 2 - 1, -point[1] / canvas.height * 2 + 1]);
     });
 }
 
@@ -64,17 +66,16 @@ function drawCircle(x, y, radius) {
     ctx.strokeStyle = 'black';
 }
 
-function getNormalizedInputData() {
-    const X = inputData.map(p => p[0]);
-    const Y = inputData.map(p => p[1]);
+function normalizeData(data) {
+    const X = data.map(p => p[0]);
+    const Y = data.map(p => p[1]);
     // Use the canvas size as the normalization factor.
-    const normX = X.map(x => x / canvas.width  * 2 - 1);
+    const normX = X.map(x => x / canvas.width * 2 - 1);
     const normY = Y.map(y => y / canvas.height * 2 - 1);
 
     // Flip the Y axis.
     const flippedY = normY.map(y => -y);
 
-    
     const ret = [];
     for (let i = 0; i < X.length; i++) {
         ret.push([normX[i], flippedY[i]]);
@@ -83,6 +84,11 @@ function getNormalizedInputData() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Set canvas size and scaling
+    const canvasStyle = window.getComputedStyle(canvas);
+    canvas.width = parseInt(canvasStyle.width, 10);
+    canvas.height = parseInt(canvasStyle.height, 10);
+
     pointsPerSecondInput.addEventListener('input', () => {
         pointsPerSecond = parseInt(pointsPerSecondInput.value, 10);
         pointsPerSecondValue.textContent = pointsPerSecond;
@@ -97,6 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         // Clear the points array.
         inputData.length = 0;
+        normalizedInputData.length = 0;
     });
 
     trainButton.addEventListener('click', () => {
@@ -162,7 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     window.startTime = performance.now();
     setInterval(() => {
-        const elapsed = Math.floor((performance.now() - this.startTime)/1000);
-        window.numTensorLogger.push({x: elapsed, y: tf.memory().numTensors});
+        const elapsed = Math.floor((performance.now() - this.startTime) / 1000);
+        window.numTensorLogger.push({ x: elapsed, y: tf.memory().numTensors });
     }, 1000);
 });
