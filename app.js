@@ -110,31 +110,63 @@ document.addEventListener('DOMContentLoaded', () => {
         testVanillaGAN();
     });
 
-    canvas.addEventListener('mousedown', (event) => {
-        isDrawing = true;
-        lastTime = Date.now();
-        scatterPoints(event.offsetX, event.offsetY);
-    });
+    // if not mobile
+    if (!('ontouchstart' in window)) {
+        canvas.addEventListener('mousedown', (event) => {
+            isDrawing = true;
+            lastTime = Date.now();
+            scatterPoints(event.offsetX, event.offsetY);
+        });
 
-    canvas.addEventListener('mouseup', () => {
-        isDrawing = false;
-    });
+        canvas.addEventListener('mouseup', () => {
+            isDrawing = false;
+        });
 
-    canvas.addEventListener('mousemove', (event) => {
-        mouseX = event.offsetX;
-        mouseY = event.offsetY;
-        if (isDrawing) {
-            const currentTime = Date.now();
-            const elapsed = currentTime - lastTime;
-            if (elapsed > 1000 / pointsPerSecond) {
-                scatterPoints(mouseX, mouseY);
-                lastTime = currentTime;
+        canvas.addEventListener('mousemove', (event) => {
+            mouseX = event.offsetX;
+            mouseY = event.offsetY;
+            if (isDrawing) {
+                const currentTime = Date.now();
+                const elapsed = currentTime - lastTime;
+                if (elapsed > 1000 / pointsPerSecond) {
+                    scatterPoints(mouseX, mouseY);
+                    lastTime = currentTime;
+                }
             }
-        }
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        inputData.forEach(point => ctx.fillRect(point[0], point[1], 1, 1));
-        drawCircle(mouseX, mouseY, range);
-    });
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            inputData.forEach(point => ctx.fillRect(point[0], point[1], 1, 1));
+            drawCircle(mouseX, mouseY, range);
+        });
+    } else {
+        canvas.addEventListener('touchstart', (event) => {
+            isDrawing = true;
+            lastTime = Date.now();
+            const touchPos = getTouchPos(canvas, event);
+            scatterPoints(touchPos.x, touchPos.y);
+        });
+
+        canvas.addEventListener('touchend', () => {
+            isDrawing = false;
+        });
+
+        canvas.addEventListener('touchmove', (event) => {
+            const touchPos = getTouchPos(canvas, event);
+            mouseX = touchPos.x;
+            mouseY = touchPos.y;
+            if (isDrawing) {
+                const currentTime = Date.now();
+                const elapsed = currentTime - lastTime;
+                if (elapsed > 1000 / pointsPerSecond) {
+                    scatterPoints(mouseX, mouseY);
+                    lastTime = currentTime;
+                }
+            }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            inputData.forEach(point => ctx.fillRect(point[0], point[1], 1, 1));
+            drawCircle(mouseX, mouseY, range);
+            event.preventDefault();
+        });
+    }
 
     document.addEventListener('keydown', (event) => {
         if (event.key === 'w' || event.key === 'W') {
@@ -157,6 +189,8 @@ document.addEventListener('DOMContentLoaded', () => {
             rangeValue.textContent = range;
         }
     });
+
+
 
     initVanillaGAN();
 
