@@ -438,6 +438,7 @@ class DynamicDecisionMap {
 
         this.contourPlot.update(decisionMap);
         this.quiverPlot.update(gradientMap);
+        this.contourPlot.colorbarGroup.raise();
         this.realDataPlot.update(realData);
         this.fakeDataPlot.update(fakeData);
     }

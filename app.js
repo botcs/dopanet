@@ -208,5 +208,5 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(() => {
         const elapsed = Math.floor((performance.now() - this.startTime) / 1000);
         window.numTensorLogger.push({ x: elapsed, y: tf.memory().numTensors });
-    }, 1000);
+    }, 5000);
 });
