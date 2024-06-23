@@ -21,19 +21,27 @@
     </div>
     <canvas id="canvas"></canvas>
 
-    <h2>Vanilla GAN</h2>
+    <!-- Add a selector for the GAN -->
+    <div id="controlBox">
+        <select id="modelSelect">
+            <option value="vanilla" default="True">Vanilla GAN</option>
+            <option value="infogan">InfoGAN</option>
+        </select>
     <div>
-        <button id="trainVanGANButton">Train</button>
-        <button id="resetVanGANButton">Reset Modell</button>
+        <button id="trainGANButton">Train</button>
+        <button id="resetGANButton">Reset Modell</button>
     </div>
-    <div id="vanillaGAN" class="GANBox"></div>
+    <div id="GANBox">
+        <div id="mainGANPlot"></div>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- <script src="https://cdn.plot.ly/plotly-latest.min.js"></script> -->
-    <script src="https://d3js.org/d3.v5.min.js"></script>
-    <script src="vanilla_gan.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="vanilla.js"></script>
+    <script src="infogan.js"></script>
     <script src="utils.js"></script>
     <script src="app.js"></script>
 </body>

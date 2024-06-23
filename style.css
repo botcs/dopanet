@@ -22,7 +22,15 @@ svg {
     height: 100%;
 }
 
-.GANBox {
+#controlBox {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    margin-top: 10px;
+}
+
+#mainGANPlot {
     display: flex;
     /* justify-content: center; */
     align-items: center;
@@ -61,7 +69,7 @@ button {
         height: 50vh;
     }
 
-    .GANBox {
+    #mainGANPlot {
         width: 90vw;
         height: 50vh;
     }
@@ -74,7 +82,7 @@ button {
         height: 60vh;
     }
 
-    .GANBox {
+    #mainGANPlot {
         width: 80vw;
         height: 60vh;
     }
@@ -87,7 +95,7 @@ button {
         height: 40em;
     }
 
-    .GANBox {
+    #mainGANPlot {
         height: 40em;
         width: 50em;
     }

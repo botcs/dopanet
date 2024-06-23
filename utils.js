@@ -262,7 +262,8 @@ class DynamicContourPlot {
 
         this.colorbarGroup = svg.append("g")
             .attr("class", "colorbar-group")
-            .attr("transform", `translate(${this.width-50}, ${this.height*0.1}) scale(1, 0.8)`);
+            .attr("transform", `translate(${this.width-50}, ${this.height*0.1}) scale(1, 0.8)`)
+            .attr("visibility", "hidden");
 
         this._createColorbar();
     }
@@ -275,10 +276,15 @@ class DynamicContourPlot {
             .size(shape)
             .smooth(true)(z);
 
+
+        // Filter contours based on zlim
+        const zlim = this.zlim || [d3.min(z), d3.max(z)];
+        const filteredContours = contours.filter(d => d.value >= zlim[0] && d.value <= zlim[1]);
+
         const scale = Math.max(this.width / shape[1], this.height / shape[0]);
         const path = d3.geoPath(d3.geoIdentity().scale(scale));
 
-        const paths = this.mainGroup.selectAll("path").data(contours);
+        const paths = this.mainGroup.selectAll("path").data(filteredContours);
 
         paths.enter()
             .append("path")
@@ -335,7 +341,6 @@ class DynamicContourPlot {
         const [dataMin, dataMax] = dataRange;
 
         this.colorbarGroup.selectAll(".limit-line").remove();
-
         if (this.zlim) {
             this.colorbarGroup.append("line")
                 .attr("class", "limit-line")
@@ -344,7 +349,7 @@ class DynamicContourPlot {
                 .attr("y1", barScale(dataMin))
                 .attr("y2", barScale(dataMin))
                 .attr("stroke", "red")
-                .attr("stroke-width", 2);
+                .attr("stroke-width", 4);
 
             this.colorbarGroup.append("line")
                 .attr("class", "limit-line")
@@ -353,8 +358,9 @@ class DynamicContourPlot {
                 .attr("y1", barScale(dataMax))
                 .attr("y2", barScale(dataMax))
                 .attr("stroke", "red")
-                .attr("stroke-width", 2);
+                .attr("stroke-width", 4);
         }
+        this.colorbarGroup.attr("visibility", "visible");
     }
 
     bringToFront() {
@@ -373,7 +379,6 @@ class DynamicScatterPlot {
 
         this.xScale = d3.scaleLinear().range([0, this.width]);
         this.yScale = d3.scaleLinear().range([this.height, 0]);
-
 
         this.color = color;
         this.xlim = xlim;
@@ -419,7 +424,6 @@ class DynamicScatterPlot {
 
         // Remove circles that are no longer needed
         circles.exit().remove();
-
     }
 
     bringToFront() {
@@ -482,4 +486,23 @@ class DynamicDecisionMap {
 
         this.update(data);
     }
+}
+
+function randomNormal(targetTensorBuffer) {
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random(); // Converting [0,1) to (0,1)
+    while (v === 0) v = Math.random();
+    // return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+    val = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+
+
+function randInt(min, max, n=1) {
+    if (n === 1) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+    return Array.from(
+        {length: n}, 
+        () => Math.floor(Math.random() * (max - min + 1)) + min
+    );
 }

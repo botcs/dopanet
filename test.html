@@ -1,146 +1,108 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Dynamic Contour Plot</title>
-    <script src="https://d3js.org/d3.v6.min.js"></script>
-    <style>
-        .colorbar {
-            shape-rendering: crispEdges;
-        }
-    </style>
+    <title>TensorFlow.js Utility Function</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/9.4.3/math.js"></script>
 </head>
 <body>
-    <svg width="600" height="400"></svg>
     <script>
-        class DynamicContourPlot {
-            constructor(svg, xlim = null, ylim = null, zlim = null) {
-                this.width = svg.attr("width");
-                this.height = svg.attr("height");
-                this.svg = svg;
-                this.mainGroup = svg.append("g");
+        // Box-Muller Transform to generate normal distributed random numbers
+        function generateBoxMullerNormal() {
+            let u = 0, v = 0;
+            while (u === 0) u = Math.random(); // Converting [0,1) to (0,1)
+            while (v === 0) v = Math.random();
+            return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+        }
 
-                this.color = d3.scaleSequential(d3.interpolateViridis)
-                    .domain(zlim !== null ? zlim : [0, 1]);
-
-                this.xlim = xlim;
-                this.ylim = ylim;
-                this.zlim = zlim;
-
-                this.colorbarGroup = svg.append("g")
-                    .attr("class", "colorbar-group")
-                    .attr("transform", `translate(${this.width-50}, ${this.height*0.1}) scale(1, 0.8)`);
-
-                this._createColorbar();
-            }
-
-            update(z) {
-                const shape = [z.length, z[0].length];
-                z = z.flat();
-
-                const contours = d3.contours()
-                    .size(shape)
-                    .smooth(true)(z);
-
-                const scale = Math.max(this.width / shape[1], this.height / shape[0]);
-                const path = d3.geoPath(d3.geoIdentity().scale(scale));
-
-                const paths = this.mainGroup.selectAll("path").data(contours);
-
-                paths.enter()
-                    .append("path")
-                    .merge(paths)
-                    .attr("d", path)
-                    .attr("transform", `translate(0, ${this.height}) scale(1, -1)`)
-                    .attr("fill", d => this.color(d.value))
-                    .attr("stroke", "#69b3a2")
-                    .attr("stroke-width", 1)
-                    .attr("opacity", 0.7);
-
-                paths.exit().remove();
-
-                this._updateColorbar(d3.extent(z));
-            }
-
-            _createColorbar() {
-                const colorbarHeight = this.height;
-                const colorScale = d3.scaleSequential(d3.interpolateViridis)
-                    .domain([400, 0]);
-                const rectHeight = colorbarHeight / 400;
-
-                const colorbar = this.colorbarGroup.selectAll(".rect")
-                    .data(d3.range(400))
-                    .enter()
-                    .append("rect")
-                    .attr("class", "rect")
-                    .attr("y", d => d * rectHeight)
-                    .attr("x", 0)
-                    .attr("height", rectHeight)
-                    .attr("width", 20)
-                    .attr("fill", d => colorScale(d));
-
-                const barScale = d3.scaleLinear()
-                    .range([colorbarHeight, 0]);
-
-                this.colorbarAxis = d3.axisRight(barScale)
-                    .ticks(6);
-
-                this.colorbarGroup.append("g")
-                    .attr("class", "colorbar-axis")
-                    .attr("transform", `translate(20, 0)`)
-                    .call(this.colorbarAxis);
-            }
-
-            _updateColorbar(dataRange) {
-                const barScale = d3.scaleLinear()
-                    .domain(this.zlim !== null ? this.zlim : this.color.domain())
-                    .range([this.height, 0]);
-
-                this.colorbarAxis.scale(barScale);
-                this.colorbarGroup.select(".colorbar-axis").call(this.colorbarAxis);
-
-                const [dataMin, dataMax] = dataRange;
-
-                this.colorbarGroup.selectAll(".limit-line").remove();
-
-                if (this.zlim) {
-                    this.colorbarGroup.append("line")
-                        .attr("class", "limit-line")
-                        .attr("x1", 0)
-                        .attr("x2", 20)
-                        .attr("y1", barScale(dataMin))
-                        .attr("y2", barScale(dataMin))
-                        .attr("stroke", "red")
-                        .attr("stroke-width", 2);
-
-                    this.colorbarGroup.append("line")
-                        .attr("class", "limit-line")
-                        .attr("x1", 0)
-                        .attr("x2", 20)
-                        .attr("y1", barScale(dataMax))
-                        .attr("y2", barScale(dataMax))
-                        .attr("stroke", "red")
-                        .attr("stroke-width", 2);
-                }
-            }
-
-            bringToFront() {
-                this.mainGroup.raise();
+        // Utility function to fill a multi-dimensional tf.buffer with random normal values
+        function fillBufferWithRandomNormal(buffer) {
+            for (let i = 0; i < buffer.size; i++) {
+                buffer.values[i] = generateBoxMullerNormal();
             }
         }
 
-        const svg = d3.select("svg");
-        const contourPlot = new DynamicContourPlot(svg, null, null, [0, 10]);
+        // Function to create a tensor from a preallocated tf.buffer filled with random normal values
+        async function benchmarkBufferFillWithRandomNormal(shape) {
+            const buffer = tf.buffer(shape);
+            const start = performance.now();
+            fillBufferWithRandomNormal(buffer);
+            const tensor = buffer.toTensor();
 
-        const data = [
-            [1, 2, 3, 4, 5],
-            [2, 3, 4, 5, 6],
-            [3, 4, 5, 6, 7],
-            [4, 5, 6, 7, 8],
-            [5, 6, 7, 8, 9]
-        ];
+            // Ensure the tensors are evaluated
+            await tensor.data();
 
-        contourPlot.update(data);
+            const end = performance.now();
+            tf.dispose([tensor]); // Clean up tensors
+            return end - start;
+        }
+
+        // Function to create a tensor directly from values
+        async function benchmarkDirectTensorCreation(shape) {
+            const numSamples = shape.reduce((a, b) => a * b, 1); // Calculate the total number of elements
+            const start = performance.now();
+            const values = new Float32Array(numSamples);
+            for (let i = 0; i < numSamples; i++) {
+                values[i] = generateBoxMullerNormal();
+            }
+            const tensor = tf.tensor(values, shape);
+
+            // Ensure the tensors are evaluated
+            await tensor.data();
+
+            const end = performance.now();
+            tf.dispose([tensor]); // Clean up tensors
+            return end - start;
+        }
+
+        async function benchmarkTFJSrandomNormal(shape) {
+            const start = performance.now();
+            const tensor = tf.randomNormal(shape);
+            await tensor.data();
+            const end = performance.now();
+            tf.dispose([tensor]);
+            return end - start;
+        }
+
+        // Function to run the benchmarks and collect the times
+        async function runBenchmarks() {
+            const shapes = [
+                [10, 10, 10], // 1,000 elements
+                [32, 32, 32], // 32,768 elements
+                [64, 64, 64], // 262,144 elements
+                [100, 100, 10] // 100,000 elements
+            ];
+            const numTrials = 1000;
+
+            for (const shape of shapes) {
+                const directTensorTimes = [];
+                const bufferFillTimes = [];
+                const tfjsRandomNormalTimes = [];
+
+                for (let i = 0; i < numTrials; i++) {
+                    directTensorTimes.push(await benchmarkDirectTensorCreation(shape));
+                    bufferFillTimes.push(await benchmarkBufferFillWithRandomNormal(shape));
+                    tfjsRandomNormalTimes.push(await benchmarkTFJSrandomNormal(shape));
+                }
+
+                const directTensorMean = math.mean(directTensorTimes);
+                const directTensorStd = math.std(directTensorTimes);
+                console.log(`Direct Tensor Creation (${shape}): Mean = ${directTensorMean.toFixed(2)} ms, Std = ${directTensorStd.toFixed(2)} ms`);
+
+                const bufferFillMean = math.mean(bufferFillTimes);
+                const bufferFillStd = math.std(bufferFillTimes);
+                console.log(`Buffer Fill with Random Normal (${shape}): Mean = ${bufferFillMean.toFixed(2)} ms, Std = ${bufferFillStd.toFixed(2)} ms`);
+
+                const tfjsRandomNormalMean = math.mean(tfjsRandomNormalTimes);
+                const tfjsRandomNormalStd = math.std(tfjsRandomNormalTimes);
+                console.log(`tfjs.randomNormal (${shape}): Mean = ${tfjsRandomNormalMean.toFixed(2)} ms, Std = ${tfjsRandomNormalStd.toFixed(2)} ms`);
+
+                console.log('');
+            }
+        }
+
+        // Run the benchmarks and log the results
+        runBenchmarks();
     </script>
 </body>
 </html>

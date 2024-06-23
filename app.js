@@ -5,15 +5,20 @@ function main(){
     const pointsPerSecondInput = document.getElementById('pointsPerSecond');
     const rangeInput = document.getElementById('range');
     const resetCanvasButton = document.getElementById('resetCanvasButton');
-    const trainVanGANButton = document.getElementById('trainVanGANButton');
-    const resetVanGANButton = document.getElementById('resetVanGANButton');
+    const trainGANButton = document.getElementById('trainGANButton');
+    const resetGANButton = document.getElementById('resetGANButton');
     const pointsPerSecondValue = document.getElementById('pointsPerSecondValue');
     const rangeValue = document.getElementById('rangeValue');
+    const modelSelect = document.getElementById('modelSelect');
 
     const inputData = [];
     const normalizedInputData = [];
 
-    const vanillaMH = new VanillaGANModelHandler(normalizedInputData);
+    modelHandlers = {
+        'vanilla': new VanillaGAN.ModelHandler(normalizedInputData),
+        'infogan': new InfoGAN.ModelHandler(normalizedInputData),
+    };
+    let selectedMH = modelHandlers[modelSelect.value];
 
     let isDrawing = false;
     let pointsPerSecond = parseInt(pointsPerSecondInput.value, 10);
@@ -82,6 +87,8 @@ function main(){
     canvas.width = parseInt(canvasStyle.width, 10);
     canvas.height = parseInt(canvasStyle.height, 10);
 
+
+    // Register event listeners
     pointsPerSecondInput.addEventListener('input', () => {
         pointsPerSecond = parseInt(pointsPerSecondInput.value, 10);
         pointsPerSecondValue.textContent = pointsPerSecond;
@@ -100,17 +107,22 @@ function main(){
     });
 
 
-    trainVanGANButton.addEventListener('click', () => {
-        vanillaMH.trainToggle(normalizedInputData);
-        if (trainVanGANButton.textContent !== 'Stop Training') {
-            trainVanGANButton.textContent = 'Stop Training';
+    trainGANButton.addEventListener('click', () => {
+        selectedMH.trainToggle(normalizedInputData);
+        if (trainGANButton.textContent !== 'Stop Training') {
+            trainGANButton.textContent = 'Stop Training';
         } else {
-            trainVanGANButton.textContent = 'Resume Training';
+            trainGANButton.textContent = 'Resume Training';
         }
     });
 
-    resetVanGANButton.addEventListener('click', () => {
-        vanillaMH.reset();
+    resetGANButton.addEventListener('click', () => {
+        selectedMH.reset();
+    });
+
+    modelSelect.addEventListener('change', () => {
+        selectedMH.stopTraining();
+        selectedMH = modelHandlers[modelSelect.value];
     });
 
     canvas.addEventListener('mousedown', (event) => {
