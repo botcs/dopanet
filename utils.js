@@ -172,7 +172,7 @@ class DynamicQuiverPlot {
         }
     }
 
-    update(data) {
+    async update(data) {
         
         // data is [gridSizeX, gridSizeY, 4]
         const [gridSizeX, gridSizeY] = [data.length, data[0].length];
@@ -207,18 +207,19 @@ class DynamicQuiverPlot {
         }
         
         const arrowSelection = this.arrows.selectAll("line").data(data);
-        arrowSelection.enter().append("line")
+        const p1 = arrowSelection.enter().append("line")
             .attr("class", "arrow")
             .merge(arrowSelection)
             .attr("x1", d => this.x(d.x))
             .attr("y1", d => this.y(d.y))
             .attr("x2", d => this.x(d.x + d.u))
-            .attr("y2", d => this.y(d.y + d.v));
+            .attr("y2", d => this.y(d.y + d.v))
+            .transition().duration(0).end();
 
-        arrowSelection.exit().remove();
+        const p2 = arrowSelection.exit().remove().transition().duration(0).end();
 
         const arrowheadSelection = this.arrows.selectAll("path").data(data);
-        arrowheadSelection.enter().append("path")
+        const p3 = arrowheadSelection.enter().append("path")
             .attr("class", "arrowhead")
             .merge(arrowheadSelection)
             .attr("d", d => {
@@ -238,10 +239,13 @@ class DynamicQuiverPlot {
                     .x(p => p.x)
                     .y(p => p.y)
                     .curve(d3.curveLinear)(points);
-            });
+            })
+            .transition().duration(0).end();
 
-        arrowheadSelection.exit().remove();
+        const p4 = arrowheadSelection.exit().remove().transition().duration(0).end();
         this.arrows.raise();
+
+        await Promise.all([p1, p2, p3, p4]);
     }
 }
 
@@ -268,7 +272,7 @@ class DynamicContourPlot {
         this._createColorbar();
     }
 
-    update(z) {
+    async update(z) {
         const shape = [z.length, z[0].length];
         z = z.flat();
 
@@ -286,7 +290,7 @@ class DynamicContourPlot {
 
         const paths = this.mainGroup.selectAll("path").data(filteredContours);
 
-        paths.enter()
+        await paths.enter()
             .append("path")
             .merge(paths)
             .attr("d", path)
@@ -294,7 +298,11 @@ class DynamicContourPlot {
             .attr("fill", d => this.color(d.value))
             .attr("stroke", "#69b3a2")
             .attr("stroke-width", 1)
-            .attr("opacity", 0.7);
+            .attr("opacity", 0.7)
+            .attr("stroke-linejoin", "round")
+            .attr("stroke-linecap", "round")
+            .transition().duration(0).end();
+
 
         paths.exit().remove();
 
@@ -385,7 +393,7 @@ class DynamicScatterPlot {
         this.ylim = ylim;
     }
 
-    update(data) {
+    async update(data) {
         // handle xlim and ylim
         if (this.xlim !== null) {
             this.xScale.domain(this.xlim);
@@ -402,17 +410,18 @@ class DynamicScatterPlot {
 
 
         // Update existing circles
-        circles
+        const p1 = circles
             .attr("cx", d => this.xScale(d[0]))
             .attr("cy", d => this.yScale(d[1]))
             .attr("r", 3)
             .attr("fill", this.color)
             .attr("stroke", "#000")
             .attr("stroke-width", 1)
-            .attr("opacity", 0.7);
+            .attr("opacity", 0.7)
+            .transition().duration(0).end();
 
         // Enter new circles
-        circles.enter()
+        const p2 = circles.enter()
             .append("circle")
             .attr("cx", d => this.xScale(d[0]))
             .attr("cy", d => this.yScale(d[1]))
@@ -420,10 +429,13 @@ class DynamicScatterPlot {
             .attr("fill", this.color)
             .attr("stroke", "#000")
             .attr("stroke-width", 1)
-            .attr("opacity", 0.7);
+            .attr("opacity", 0.7)
+            .transition().duration(0).end();
 
         // Remove circles that are no longer needed
-        circles.exit().remove();
+        const p3 = circles.exit().remove().transition().duration(0).end();
+
+        await Promise.all([p1, p2, p3]);
     }
 
     bringToFront() {
@@ -457,14 +469,17 @@ class DynamicDecisionMap {
 
     }
 
-    update(data) {
+    async update(data) {
         const { realData, fakeData, decisionMap, gradientMap } = data;
 
-        this.contourPlot.update(decisionMap);
-        this.quiverPlot.update(gradientMap);
+        const p1 = this.contourPlot.update(decisionMap);
+        const p2 = this.quiverPlot.update(gradientMap);
         this.contourPlot.colorbarGroup.raise();
-        this.realDataPlot.update(realData);
-        this.fakeDataPlot.update(fakeData);
+        
+        const p3 = this.realDataPlot.update(realData);
+        const p4 = this.fakeDataPlot.update(fakeData);
+
+        await Promise.all([p1, p2, p3, p4]);
     }
 
     bringToFront() {
@@ -474,7 +489,7 @@ class DynamicDecisionMap {
         this.fakeDataPlot.bringToFront();
     }
 
-    plot(modelHandler) {
+    async plot(modelHandler) {
         // Randomly select 500 points from the real data
         const realData = d3.shuffle(modelHandler.inputData).slice(0, 200);
 
@@ -484,7 +499,7 @@ class DynamicDecisionMap {
         const {decisionMap, gradientMap} = modelHandler.decisionAndGradientMap();
         const data = { realData, fakeData, decisionMap, gradientMap};
 
-        this.update(data);
+        await this.update(data);
     }
 }
 
@@ -505,4 +520,21 @@ function randInt(min, max, n=1) {
         {length: n}, 
         () => Math.floor(Math.random() * (max - min + 1)) + min
     );
+}
+
+// Define a custom layer that normalizes the input tensor
+class NormalizeLayer extends tf.layers.Layer {
+    constructor(config) {
+        super(config);
+        this.constant = config.constant;
+    }
+
+    call(inputs) {
+        const input = inputs[0];
+        return tf.div(input, tf.scalar(this.constant));
+    }
+
+    static get className() {
+        return 'NormalizeLayer';
+    }
 }

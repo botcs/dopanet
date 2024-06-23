@@ -1,108 +1,50 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>TensorFlow.js Utility Function</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/9.4.3/math.js"></script>
+    <title>TensorFlow.js Custom Normalization Layer Example</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
 </head>
 <body>
+    <h1>TensorFlow.js Custom Normalization Layer Example</h1>
     <script>
-        // Box-Muller Transform to generate normal distributed random numbers
-        function generateBoxMullerNormal() {
-            let u = 0, v = 0;
-            while (u === 0) u = Math.random(); // Converting [0,1) to (0,1)
-            while (v === 0) v = Math.random();
-            return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
-        }
+        // Define a custom layer that normalizes the input tensor
+        class NormalizeLayer extends tf.layers.Layer {
+            constructor(config) {
+                super(config);
+                this.normalizationValue = config.normalizationValue;
+            }
 
-        // Utility function to fill a multi-dimensional tf.buffer with random normal values
-        function fillBufferWithRandomNormal(buffer) {
-            for (let i = 0; i < buffer.size; i++) {
-                buffer.values[i] = generateBoxMullerNormal();
+            call(inputs) {
+                const input = inputs[0];
+                return tf.div(input, tf.scalar(this.normalizationValue));
+            }
+
+            static get className() {
+                return 'NormalizeLayer';
             }
         }
 
-        // Function to create a tensor from a preallocated tf.buffer filled with random normal values
-        async function benchmarkBufferFillWithRandomNormal(shape) {
-            const buffer = tf.buffer(shape);
-            const start = performance.now();
-            fillBufferWithRandomNormal(buffer);
-            const tensor = buffer.toTensor();
+        // Register the custom layer
+        // tf.serialization.registerClass(NormalizeLayer);
 
-            // Ensure the tensors are evaluated
-            await tensor.data();
+        // Create a symbolic tensor (input tensor)
+        const input = tf.input({shape: [10]});
 
-            const end = performance.now();
-            tf.dispose([tensor]); // Clean up tensors
-            return end - start;
-        }
+        // Create the custom normalization layer
+        const normalizeLayer = new NormalizeLayer({normalizationValue: 5.0});
 
-        // Function to create a tensor directly from values
-        async function benchmarkDirectTensorCreation(shape) {
-            const numSamples = shape.reduce((a, b) => a * b, 1); // Calculate the total number of elements
-            const start = performance.now();
-            const values = new Float32Array(numSamples);
-            for (let i = 0; i < numSamples; i++) {
-                values[i] = generateBoxMullerNormal();
-            }
-            const tensor = tf.tensor(values, shape);
+        // Apply the normalization layer to the input tensor
+        const normalizedOutput = normalizeLayer.apply(input);
 
-            // Ensure the tensors are evaluated
-            await tensor.data();
+        // Create a model to hold the normalized tensor
+        const model = tf.model({inputs: input, outputs: normalizedOutput});
 
-            const end = performance.now();
-            tf.dispose([tensor]); // Clean up tensors
-            return end - start;
-        }
+        // Create some dummy input data
+        const inputData = tf.ones([2, 10]); // Two samples, each with 10 features
 
-        async function benchmarkTFJSrandomNormal(shape) {
-            const start = performance.now();
-            const tensor = tf.randomNormal(shape);
-            await tensor.data();
-            const end = performance.now();
-            tf.dispose([tensor]);
-            return end - start;
-        }
-
-        // Function to run the benchmarks and collect the times
-        async function runBenchmarks() {
-            const shapes = [
-                [10, 10, 10], // 1,000 elements
-                [32, 32, 32], // 32,768 elements
-                [64, 64, 64], // 262,144 elements
-                [100, 100, 10] // 100,000 elements
-            ];
-            const numTrials = 1000;
-
-            for (const shape of shapes) {
-                const directTensorTimes = [];
-                const bufferFillTimes = [];
-                const tfjsRandomNormalTimes = [];
-
-                for (let i = 0; i < numTrials; i++) {
-                    directTensorTimes.push(await benchmarkDirectTensorCreation(shape));
-                    bufferFillTimes.push(await benchmarkBufferFillWithRandomNormal(shape));
-                    tfjsRandomNormalTimes.push(await benchmarkTFJSrandomNormal(shape));
-                }
-
-                const directTensorMean = math.mean(directTensorTimes);
-                const directTensorStd = math.std(directTensorTimes);
-                console.log(`Direct Tensor Creation (${shape}): Mean = ${directTensorMean.toFixed(2)} ms, Std = ${directTensorStd.toFixed(2)} ms`);
-
-                const bufferFillMean = math.mean(bufferFillTimes);
-                const bufferFillStd = math.std(bufferFillTimes);
-                console.log(`Buffer Fill with Random Normal (${shape}): Mean = ${bufferFillMean.toFixed(2)} ms, Std = ${bufferFillStd.toFixed(2)} ms`);
-
-                const tfjsRandomNormalMean = math.mean(tfjsRandomNormalTimes);
-                const tfjsRandomNormalStd = math.std(tfjsRandomNormalTimes);
-                console.log(`tfjs.randomNormal (${shape}): Mean = ${tfjsRandomNormalMean.toFixed(2)} ms, Std = ${tfjsRandomNormalStd.toFixed(2)} ms`);
-
-                console.log('');
-            }
-        }
-
-        // Run the benchmarks and log the results
-        runBenchmarks();
+        // Get the model output
+        const output = model.predict(inputData);
+        output.print(); // Should print the normalized tensor
     </script>
 </body>
 </html>
