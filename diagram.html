@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>D3 Interactive Diagram</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .box {
+            fill: lightgray;
+            stroke: black;
+            stroke-width: 2px;
+            rx: 5;
+        }
+        .text {
+            font-size: 20px;
+            text-anchor: middle;
+            /* disable mouse */
+            pointer-events: none;
+        }
+        path {
+            fill: none;
+            stroke: black;
+            stroke-width: 2px;
+        }
+
+        .box.inactive {
+            fill: lightgray !important;
+            /* make dashed */
+            stroke-dasharray: 5, 5;
+        }
+    </style>
+</head>
+<body>
+    <svg id="diagram" width="800" height="900"></svg>
+    <script>
+        const svg = d3.select("#diagram");
+
+        const elements = {
+            "D1": { cx: 100, cy: 100, width: 50, height: 30, label: "D1", fill: "#A3C1DA" },
+            "D2": { cx: 200, cy: 100, width: 50, height: 30, label: "D2", fill: "#B5CDA3" },
+            "D3": { cx: 300, cy: 100, width: 50, height: 30, label: "D3", fill: "#DAB08C" },
+            "Classifier": { cx: 200, cy: 200, width: 120, height: 30, label: "Classifier (Q)", fill: "#B8B8B8" },
+            "X_real": { cx: 100, cy: 300, width: 60, height: 30, label: "X real" },
+            "X_fake": { cx: 300, cy: 300, width: 60, height: 30, label: "X fake" },
+            "Generator": { cx: 300, cy: 400, width: 120, height: 30, label: "Generator (G)", fill: "#B8B8B8" },
+            "Discriminator": { cx: 500, cy: 100, width: 150, height: 30, label: "Discriminator (D)", fill: "#B8B8B8" },
+            "real": { cx: 400, cy: 30, width: 50, height: 30, label: "real" },
+            "fake": { cx: 600, cy: 30, width: 50, height: 30, label: "fake" },
+            "c_code": { cx: 200, cy: 500, width: 50, height: 30, label: "code" },
+            "z_noise": { cx: 400, cy: 500, width: 50, height: 30, label: "latent" },
+            "C1": { cx: 150, cy: 600, width: 30, height: 30, label: "C1", fill: "#A3C1DA" },
+            "C2": { cx: 200, cy: 600, width: 30, height: 30, label: "C2", fill: "#B5CDA3" },
+            "C3": { cx: 250, cy: 600, width: 30, height: 30, label: "C3", fill: "#DAB08C" },
+        };
+
+        Object.keys(elements).forEach(key => {
+            const elem = elements[key];
+            const x = elem.cx - elem.width / 2;
+            const y = elem.cy - elem.height / 2;
+            const elemGroup = svg.append("g")
+                .attr("class", "elemGroup")
+                .attr("transform", `translate(${x}, ${y})`)
+                .attr("id", key);
+
+            const rect = elemGroup.append("rect")
+                .attr("width", elem.width)
+                .attr("height", elem.height)
+                .attr("class", "box")
+                .style("fill", elem.fill || "white");
+
+            // add text to the box
+            elemGroup.append("text")
+                .attr("x", elem.width / 2)
+                .attr("y", elem.height / 2)
+                .attr("dy", "0.35em")
+                .attr("class", "text")
+                .text(elem.label);
+            
+        });
+
+        // if a code C1, C2, or C3 is clicked, toggle the .inactive class
+        // and toggle the corresponding D1, D2, or D3 box
+        svg.selectAll(".elemGroup")
+            .on("click", function() {
+                const elem = d3.select(this);
+                const id = elem.attr("id");
+                if (id.startsWith("C")) {
+                    const dId = "D" + id[1];
+                    const dBox = d3.select("#" + dId).select("rect");
+                    const box = elem.select("rect");
+                    box.classed("inactive", !box.classed("inactive"));
+                    dBox.classed("inactive", !dBox.classed("inactive"));
+                }
+            });
+
+        const links = [
+            { source: "D1", target: "Classifier" },
+            { source: "D2", target: "Classifier" },
+            { source: "D3", target: "Classifier" },
+            { source: "Classifier", target: "X_real" },
+            { source: "Classifier", target: "X_fake" },
+            { source: "X_fake", target: "Generator" },
+            { source: "Generator", target: "Discriminator" },
+            { source: "Discriminator", target: "real" },
+            { source: "Discriminator", target: "fake" },
+            { source: "c_code", target: "Generator" },
+            { source: "z_noise", target: "Generator" },
+            { source: "C1", target: "c_code" },
+            { source: "C2", target: "c_code" },
+            { source: "C3", target: "c_code" },
+        ];
+
+        const curvePath = (d) => {
+            const source = elements[d.source];
+            const target = elements[d.target];
+            const x1 = source.cx;
+            const y1 = source.cy;
+            const x2 = target.cx;
+            const y2 = target.cy;
+            const mx = (x1 + x2) / 2;
+            const my = (y1 + y2) / 2;
+            return `M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}`;
+        };
+
+        links.forEach(link => {
+            svg.append("path")
+                .attr("d", curvePath(link))
+                .attr("fill", "none")
+                .attr("stroke", "black")
+                .attr("stroke-width", 2)
+                .lower();
+        });
+    </script>
+</body>
+</html>
