@@ -523,7 +523,7 @@ function randInt(min, max, n=1) {
 }
 
 // Define a custom layer that normalizes the input tensor
-class NormalizeLayer extends tf.layers.Layer {
+class MultiplyLayer extends tf.layers.Layer {
     constructor(config) {
         super(config);
         this.constant = config.constant;
@@ -531,10 +531,10 @@ class NormalizeLayer extends tf.layers.Layer {
 
     call(inputs) {
         const input = inputs[0];
-        return tf.div(input, tf.scalar(this.constant));
+        return tf.mul(input, tf.scalar(this.constant));
     }
 
     static get className() {
-        return 'NormalizeLayer';
+        return 'MultiplyLayer';
     }
 }
