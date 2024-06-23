@@ -97,19 +97,6 @@ const VanillaGAN = (function() {
                 loss: 'binaryCrossentropy',
             });
 
-            this.gLossVisor = new VisLogger({
-                name: 'Generator Loss',
-                tab: 'Vanilla GAN',
-                xLabel: 'Iteration',
-                yLabel: 'Loss',
-            });
-            this.dLossVisor = new VisLogger({
-                name: 'Discriminator Loss',
-                tab: 'Vanilla GAN',
-                xLabel: 'Iteration',
-                yLabel: 'Loss',
-            });
-            
             this.realSamplesBuff = tf.buffer([this.batchSize, 2]);
 
             this.isTraining = false;
@@ -124,9 +111,6 @@ const VanillaGAN = (function() {
                 resetWeights(this.discriminator)
             ]);
             
-
-            this.gLossVisor.clear();
-            this.dLossVisor.clear();
         }
 
         async trainToggle(data, callback = null) {
@@ -198,17 +182,10 @@ const VanillaGAN = (function() {
                 zlim: [0, 1],
             });
 
-            this.fpsCounter = new FPSCounter("Vanilla GAN FPS");
             this.isInitialized = false;
         }
         async init() {
             await this.gan.init();
-            this.callback = (iter, gLoss, dLoss) => {
-                this.gan.gLossVisor.push({ x: iter, y: gLoss });
-                this.gan.dLossVisor.push({ x: iter, y: dLoss });
-                this.ddm.plot(this);
-                this.fpsCounter.update();
-            }
 
             this.gridSize = 20;
             const x = tf.linspace(-1, 1, this.gridSize);
@@ -217,6 +194,28 @@ const VanillaGAN = (function() {
             this.decisionMapInputBuff = tf.stack([grid[0].flatten(), grid[1].flatten()], 1);
             tf.dispose([x, y, grid]);
 
+
+            this.fpsCounter = new FPSCounter("Vanilla GAN FPS");
+            this.gLossVisor = new VisLogger({
+                name: 'Generator Loss',
+                tab: 'Vanilla GAN',
+                xLabel: 'Iteration',
+                yLabel: 'Loss',
+            });
+            this.dLossVisor = new VisLogger({
+                name: 'Discriminator Loss',
+                tab: 'Vanilla GAN',
+                xLabel: 'Iteration',
+                yLabel: 'Loss',
+            });
+
+            this.callback = (iter, gLoss, dLoss) => {
+                this.gLossVisor.push({ x: iter, y: gLoss });
+                this.dLossVisor.push({ x: iter, y: dLoss });
+                this.ddm.plot(this);
+                this.fpsCounter.update();
+            }
+            
             this.isInitialized = true;
         }
 
@@ -251,6 +250,8 @@ const VanillaGAN = (function() {
 
         async reset() {
             this.gan.resetParams();
+            this.gLossVisor.clear();
+            this.dLossVisor.clear();
             this.ddm.plot(this);
         }
     }

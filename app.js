@@ -202,6 +202,12 @@ function main(){
         }
     });
 
+
+    // tfvis.visor().close();
+    // Set tf.visor to be hidden by default
+    // tfvis.visor().toggle();
+    tfvis.visor().close();
+
     // Set up periodic printing of the number of tensors
     window.numTensorLogger = new VisLogger({
         name: "Number of Tensors over Time",
@@ -218,6 +224,9 @@ function main(){
     // Set up periodic FPS logging
     window.fps = new FPSCounter("Main Loop FPS", 2000);
     window.fps.start();
+
+
+    
 }
 
 

@@ -10,8 +10,6 @@ class VisLogger {
         height = 300,
         maxSize = 150,
     }) {
-        tfvis.visor().close();
-
         this.numItems = 0;
         this.X = [];
         this.Y = [];
@@ -255,7 +253,8 @@ class DynamicContourPlot {
         this.width = svg.attr("width");
         this.height = svg.attr("height");
         this.svg = svg;
-        this.mainGroup = svg.append("g");
+        this.mainGroup = svg.append("g")
+            .attr("class", "contour-group");
 
         this.color = d3.scaleSequential(d3.interpolateViridis)
             .domain(zlim !== null ? zlim : [0, 1]);
@@ -282,19 +281,40 @@ class DynamicContourPlot {
 
 
         // Filter contours based on zlim
-        const zlim = this.zlim || [d3.min(z), d3.max(z)];
-        const filteredContours = contours.filter(d => d.value >= zlim[0] && d.value <= zlim[1]);
+        // const zlim = this.zlim || [d3.min(z), d3.max(z)];
+        // const filteredContours = contours.filter(d => d.value >= zlim[0] && d.value <= zlim[1]);
 
-        const scale = Math.max(this.width / shape[1], this.height / shape[0]);
-        const path = d3.geoPath(d3.geoIdentity().scale(scale));
+        // const scale = Math.max(this.width / shape[1], this.height / shape[0]);
+        // const path = d3.geoPath(d3.geoIdentity().scale(scale));
 
-        const paths = this.mainGroup.selectAll("path").data(filteredContours);
+        // scale path preserving the aspect ratio
+        
+        
+        const height = this.height;
+        const width = this.width;
+        const scaleX = width / shape[1];
+        const scaleY = height / shape[0];
+        const transform = d3.geoTransform({
+            point: function(x, y) {
+                this.stream.point(x * scaleX, height - y * scaleY );
+            }
+        });
+
+        const path = d3.geoPath(transform);
+
+            // .fitExtent([[0, 0], [this.width, this.height]], { type: "MultiPoint", coordinates: [[0, 0], [shape[1], shape[0]]] }));
+            // .fitSize([this.width, this.height], { type: "MultiPoint", coordinates: [[0, 0], [shape[1], shape[0]]] }));
+
+
+
+        // const paths = this.mainGroup.selectAll("path").data(filteredContours);
+        const paths = this.mainGroup.selectAll("path").data(contours);
 
         await paths.enter()
             .append("path")
             .merge(paths)
             .attr("d", path)
-            .attr("transform", `translate(0, ${this.height}) scale(1, -1)`)
+            // .attr("transform", `translate(0, ${this.height}) scale(1, -1)`)
             .attr("fill", d => this.color(d.value))
             .attr("stroke", "#69b3a2")
             .attr("stroke-width", 1)
