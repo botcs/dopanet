@@ -109,7 +109,8 @@ class DynamicContourPlot {
         ylim = null, 
         zlim = null, 
         gridShape = null, 
-        colormap = null
+        colormap = null,
+        showColorbar = true,
         } = {}
     ) {
         this.width = svg.attr("width");
@@ -129,6 +130,7 @@ class DynamicContourPlot {
         this.ylim = ylim;
         this.zlim = zlim;
         this.gridShape = gridShape;
+        this.showColorbar = showColorbar;
 
         this.colorbarGroup = svg.append("g")
             .attr("class", "colorbar-group")
@@ -177,8 +179,9 @@ class DynamicContourPlot {
 
 
         paths.exit().remove();
-
-        this._updateColorbar(d3.extent(z));
+        if (this.showColorbar) {
+            this._updateColorbar(d3.extent(z));
+        }
     }
 
     _createColorbar() {
@@ -329,6 +332,7 @@ class DynamicDecisionMap {
         zlim = null, 
         colormap = null,
         gridShape = [20, 20],
+        showColorbar = true,
     }={}) {
         // Find the svg if doesn't exist create one
         this.svg = d3.select(div).select("svg");
@@ -355,7 +359,8 @@ class DynamicDecisionMap {
             ylim, 
             zlim, 
             colormap,
-            gridShape
+            gridShape,
+            showColorbar
         });
         this.quiverPlot = new DynamicQuiverPlot({svg:this.svg, normalize:"mean"});
         this.realDataPlot = new DynamicScatterPlot(this.svg, "black", xlim, ylim);
@@ -427,14 +432,15 @@ class DynamicMultiDecisionMap {
             const maxZ = 1;
             const zlim = [minZ, maxZ];
             const colormap = this.colormaps[i % this.colormaps.length];
-
+            
             const ddm = new DynamicDecisionMap({
                 div,
                 xlim,
                 ylim,
                 zlim,
                 gridShape,
-                colormap
+                colormap,
+                showColorbar: false
             });
 
             this.decisionMaps.push(ddm);

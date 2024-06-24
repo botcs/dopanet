@@ -42,6 +42,7 @@ const InfoGAN = (function() {
             this.buildCombinedModel();
             
             this.realSamplesBuff = tf.buffer([this.batchSize, 2]);
+            this.fakeSamplesBuff = tf.buffer([this.batchSize, 2]);
             this.isTraining = false;
         }
     
@@ -119,6 +120,19 @@ const InfoGAN = (function() {
             });
         }
 
+
+        readTrainingBuffer() {
+            const realData = this.realSamplesBuff.toTensor();
+            const fakeData = this.fakeSamplesBuff.toTensor();
+
+            const ret = {
+                realData: realData.arraySync(),
+                fakeData: fakeData.arraySync(),
+            }
+            tf.dispose([realData, fakeData]);
+            return ret;
+        }
+
         async trainToggle(data, callback = null) {
             if (this.isTraining) {
                 this.isTraining = false;
@@ -144,6 +158,12 @@ const InfoGAN = (function() {
                 const gCode = tf.oneHot(idxs, this.codeDim);
 
                 const fakeSamples = this.generator.predict([gLatent, gCode]);
+                const fakeSamplesVal = fakeSamples.arraySync();
+                // load it to the FakeSamples buffer
+                for (let i = 0; i < this.batchSize; i++) {
+                    this.fakeSamplesBuff.set(fakeSamplesVal[i][0], i, 0);
+                    this.fakeSamplesBuff.set(fakeSamplesVal[i][1], i, 1);
+                }
 
                 const dInputs = tf.concat([realSamples, fakeSamples]);
                 const dLabelsCombined = tf.concat([realLabels, fakeLabels]);
@@ -220,6 +240,7 @@ const InfoGAN = (function() {
             this.isInitialized = false;
         }
 
+
         async init() {
             await this.gan.init();
             
@@ -228,9 +249,11 @@ const InfoGAN = (function() {
                 this.dLossVisor.push({ x: iter, y: dLoss });
                 this.qLossVisor.push({ x: iter, y: qLoss });
                 
-                const realData = d3.shuffle(this.inputData).slice(0, 100);
-                const fakeData = this.generate(100);
-
+                // const realData = d3.shuffle(this.inputData).slice(0, 20);
+                // const fakeData = this.generate(20);
+                // Use the realDataBuff and fakeDataBuff to read data from
+                
+                const {realData, fakeData} = this.gan.readTrainingBuffer();
                 const {decisionMaps, gradientMap} = this.QDAGMaps();
                 const data = { realData, fakeData, decisionMaps, gradientMap };
                 this.ddm.update(data)
