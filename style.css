@@ -54,11 +54,11 @@ button {
 }
 .arrow {
     fill: none;
-    stroke: rgba(255, 166, 0, 0.377);
+    stroke: rgba(255, 166, 0, 0.709);
     stroke-width: 1.5px;
 }
 .arrowhead {
-    fill: rgba(255, 166, 0, 0.377);
+    fill: rgba(255, 166, 0, 0.709);
     stroke: none;
 }
 
