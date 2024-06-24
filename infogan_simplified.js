@@ -228,15 +228,18 @@ const InfoGAN = (function() {
                 this.dLossVisor.push({ x: iter, y: dLoss });
                 this.qLossVisor.push({ x: iter, y: qLoss });
                 
-                const ret = this.QDAGMap();
-                console.log(ret);
-                // await this.ddm.plot(this);
+                const realData = d3.shuffle(this.inputData).slice(0, 100);
+                const fakeData = this.generate(100);
+
+                const {decisionMaps, gradientMap} = this.QDAGMaps();
+                const data = { realData, fakeData, decisionMaps, gradientMap };
+                this.ddm.update(data)
                 this.fpsCounter.update();
             }
 
-            this.gridSize = 20;
-            const x = tf.linspace(-1, 1, this.gridSize);
-            const y = tf.linspace(-1, 1, this.gridSize);
+            this.ddmGridSize = 20;
+            const x = tf.linspace(-1, 1, this.ddmGridSize);
+            const y = tf.linspace(-1, 1, this.ddmGridSize);
             const grid = tf.meshgrid(x, y);
             this.decisionMapInputBuff = tf.stack([grid[0].flatten(), grid[1].flatten()], 1);
             tf.dispose([x, y, grid]);
@@ -271,55 +274,52 @@ const InfoGAN = (function() {
         // DAG = Decision and Gradient
         DiscriminatorDAGMap() {
             const points = this.decisionMapInputBuff;
-            const res = tf.valueAndGrad(
+            const {value: pred, grad} = tf.valueAndGrad(
                 point => {
                     return this.gan.discriminator.predict(point);
                 })(points);
 
-            const pred2D = res.value.reshape([this.gridSize, this.gridSize]);
-            const xyuv = tf.concat([points, res.grad], 1);
-            const xyuv2D = xyuv.reshape([this.gridSize, this.gridSize, 4]);
+            const xyuv = tf.concat([points, grad], 1);
             const ret = {
-                decisionMap: pred2D.arraySync(),
-                gradientMap: xyuv2D.arraySync()
+                decisionMap: pred.arraySync(),
+                gradientMap: xyuv.arraySync()
             };
 
-            tf.dispose([points, res, pred2D, xyuv, xyuv2D]);
+            tf.dispose([points, res, xyuv]);
             return ret;
         }
 
-        QDAGMap() {
+        QDAGMaps() {
             const points = this.decisionMapInputBuff;
-            // const preds = this.gan.qNetwork.predict(points);
+            const preds = this.gan.qNetwork.predict(points).transpose();
 
-            const pred2Ds = [];
-            const xyuv2Ds = [];
-            for (let i = 0; i < this.gan.codeDim; i++) {
-                const {value: pred, grad} = tf.valueAndGrad((point) => {
-                    return this.gan.qNetwork.predict(point).gather([i], 1);
-                })(points);
+            // Only return the highest probability's gradient
+            const grad = tf.grad((point) => {
+                return this.gan.qNetwork.predict(point).max(1);
+            })(points);
 
-                const pred2D = pred.reshape([this.gridSize, this.gridSize]);
-                pred2Ds.push(pred2D.arraySync());
+            const xyuv = tf.concat([points, grad], 1);
 
-                const xyuv = tf.concat([points, grad], 1);
-                const xyuv2D = xyuv.reshape([this.gridSize, this.gridSize, 4]);
-                xyuv2Ds.push(xyuv2D.arraySync());
+            // const preds = [];
+            // const xyuvs = [];
+            // for (let i = 0; i < this.gan.codeDim; i++) {
+            //     const {value: pred, grad} = tf.valueAndGrad((point) => {
+            //         return this.gan.qNetwork.predict(point).max({ axis: 1});
+            //     })(points);
 
-                tf.dispose([pred, pred2D, grad, xyuv, xyuv2D]);
-            }
+            //     preds.push(pred.arraySync());
 
-            // const pred2D = res.value.reshape([this.gridSize, this.gridSize]);
-            // const xyuv = tf.concat([points, res.grad], 1);
-            // const xyuv2D = xyuv.reshape([this.gridSize, this.gridSize, 4]);
-            // const ret = {
-            //     decisionMap: pred2D.arraySync(),
-            //     gradientMap: xyuv2D.arraySync()
-            // };
+            //     const xyuv = tf.concat([points, grad], 1);
+            //     xyuvs.push(xyuv.arraySync());
+
+            //     tf.dispose([pred, grad, xyuv]);
+            // }
+
             const ret = {
-                decisionMaps: pred2Ds,
-                gradientMaps: xyuv2Ds,
+                decisionMaps: preds.arraySync(),
+                gradientMap: xyuv.arraySync()
             };
+            tf.dispose([preds, grad, xyuv]);
             return ret;
         }
 

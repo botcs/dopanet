@@ -176,19 +176,21 @@ const VanillaGAN = (function() {
         constructor(inputData) {
             this.inputData = inputData;
             this.gan = new VanillaGAN();
-            this.ddm = new DynamicDecisionMap({
-                div: '#mainGANPlot',
-                xlim: [-1, 1],
-                ylim: [-1, 1],
-                zlim: [0, 1],
-            });
-
             this.isInitialized = false;
         }
         async init() {
             await this.gan.init();
 
-            this.gridSize = 20;
+
+            this.ddmGridSize = 20;
+            this.ddm = new DynamicDecisionMap({
+                div: '#mainGANPlot',
+                xlim: [-1, 1],
+                ylim: [-1, 1],
+                zlim: [0, 1],
+                gridShape: [this.ddmGridSize, this.ddmGridSize],
+            });
+
             const x = tf.linspace(-1, 1, this.gridSize);
             const y = tf.linspace(-1, 1, this.gridSize);
             const grid = tf.meshgrid(x, y);

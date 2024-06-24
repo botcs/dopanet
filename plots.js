@@ -1,6 +1,12 @@
 
 class DynamicQuiverPlot {
-    constructor({svg, normalize = "mean", xlim = null, ylim = null}={}) {
+    constructor({
+        svg, 
+        normalize = "mean", 
+        xlim = null, 
+        ylim = null,
+        gridshape = [20, 20]
+    }={}) {
         this.width = svg.attr("width");
         this.height = svg.attr("height");
         this.normalize = normalize;
@@ -8,6 +14,8 @@ class DynamicQuiverPlot {
         this.arrows = this.svg.append("g").attr("class", "arrows");
         this.xlim = xlim;
         this.ylim = ylim;
+        this.gridShape = gridshape;
+
         if (xlim !== null) {
             this.x = d3.scaleLinear().domain(xlim).range([0, this.width]).clamp(true);
         }
@@ -17,12 +25,12 @@ class DynamicQuiverPlot {
     }
 
     async update(data) {
-        
-        // data is [gridSizeX, gridSizeY, 4]
-        const [gridSizeX, gridSizeY] = [data.length, data[0].length];
-        
-        // flatten it to [gridSizeX*gridSizeY, 4]
-        data = data.flat(1);
+        if (data.length === 0) {
+            this.arrows.selectAll("*").remove();
+            return;
+        }
+
+        const [gridSizeX, gridSizeY] = this.gridShape;
         
 
         // map data array to object
@@ -95,7 +103,15 @@ class DynamicQuiverPlot {
 
 
 class DynamicContourPlot {
-    constructor(svg, xlim = null, ylim = null, zlim = null, colormap = null) {
+    constructor({
+        svg, 
+        xlim = null, 
+        ylim = null, 
+        zlim = null, 
+        gridShape = null, 
+        colormap = null
+        } = {}
+    ) {
         this.width = svg.attr("width");
         this.height = svg.attr("height");
         this.svg = svg;
@@ -112,6 +128,7 @@ class DynamicContourPlot {
         this.xlim = xlim;
         this.ylim = ylim;
         this.zlim = zlim;
+        this.gridShape = gridShape;
 
         this.colorbarGroup = svg.append("g")
             .attr("class", "colorbar-group")
@@ -122,22 +139,20 @@ class DynamicContourPlot {
     }
 
     async update(z) {
-        const shape = [z.length, z[0].length];
-        z = z.flat();
-
-        const contours = d3.contours()
-            .size(shape)
+        let contours = d3.contours()
+            .size(this.gridShape)
             .smooth(true)(z);
 
 
         // Filter contours based on zlim
-        const zlim = this.zlim || [d3.min(z), d3.max(z)];
-        const filteredContours = contours.filter(d => d.value >= zlim[0] && d.value <= zlim[1]);
+        if (this.zlim !== null) {
+            contours = contours.filter(d => d.value >= this.zlim[0] && d.value <= this.zlim[1]);
+        }
         
         const height = this.height;
         const width = this.width;
-        const scaleX = width / shape[1];
-        const scaleY = height / shape[0];
+        const scaleX = width / this.gridShape[1];
+        const scaleY = height / this.gridShape[0];
         const transform = d3.geoTransform({
             point: function(x, y) {
                 this.stream.point(x * scaleX, height - y * scaleY );
@@ -146,7 +161,6 @@ class DynamicContourPlot {
 
         const path = d3.geoPath(transform);
 
-        // const paths = this.mainGroup.selectAll("path").data(filteredContours);
         const paths = this.mainGroup.selectAll("path").data(contours);
 
         await paths.enter()
@@ -252,6 +266,11 @@ class DynamicScatterPlot {
     }
 
     async update(data) {
+        if (data.length === 0) {
+            this.mainGroup.selectAll("*").remove();
+            return;
+        }
+
         // handle xlim and ylim
         if (this.xlim !== null) {
             this.xScale.domain(this.xlim);
@@ -303,7 +322,14 @@ class DynamicScatterPlot {
 
 // DynamicDecisionMap class
 class DynamicDecisionMap {
-    constructor({div, xlim = null, ylim = null, zlim = null, colormap = null}={}) {
+    constructor({
+        div, 
+        xlim = null, 
+        ylim = null, 
+        zlim = null, 
+        colormap = null,
+        gridShape = [20, 20],
+    }={}) {
         // Find the svg if doesn't exist create one
         this.svg = d3.select(div).select("svg");
         if (this.svg.empty()) {
@@ -319,11 +345,21 @@ class DynamicDecisionMap {
                 .attr("height", height);
         }
 
-        this.contourPlot = new DynamicContourPlot(this.svg, xlim, ylim, zlim, colormap);
+        this.xlim = xlim;
+        this.ylim = ylim;
+        this.zlim = zlim;
+
+        this.contourPlot = new DynamicContourPlot({
+            svg:this.svg, 
+            xlim, 
+            ylim, 
+            zlim, 
+            colormap,
+            gridShape
+        });
         this.quiverPlot = new DynamicQuiverPlot({svg:this.svg, normalize:"mean"});
         this.realDataPlot = new DynamicScatterPlot(this.svg, "black", xlim, ylim);
         this.fakeDataPlot = new DynamicScatterPlot(this.svg, "orange", xlim, ylim);
-
     }
 
     async update(data) {
@@ -361,7 +397,14 @@ class DynamicDecisionMap {
 }
 
 class DynamicMultiDecisionMap {
-    constructor({div, xlim = null, ylim = null, zlim = null, maxMaps = 3}={}) {
+    constructor({
+        div, 
+        xlim = null, 
+        ylim = null, 
+        zlim = null, 
+        gridShape = [20, 20],
+        numMaps = 3,
+    }={}) {
         // Extract colors from the image and create gradients
         this.colormaps = [
             d3.interpolateRgb("#D0E5FA", "#B3CDE3"), // Light blue gradient
@@ -370,47 +413,41 @@ class DynamicMultiDecisionMap {
         ];
 
         this.div = div;
-        // Find the svg if doesn't exist create one
-        // this.svg = d3.select(div).select("svg");
-        // if (this.svg.empty()) {
-        //     this.svg = d3.select(div).append("svg");
-        // }
 
         this.xlim = xlim;
         this.ylim = ylim;
         this.zlim = zlim;
-        this.maxMaps = maxMaps;
+        this.gridShape = gridShape;
+        this.numMaps = numMaps;
 
         this.decisionMaps = [];
-
-        // Create maxMaps number of DynamicDecisionMap instances in advance
-        for (let i = 0; i < this.maxMaps; i++) {
-            const zlimStep = 0.9 / this.maxMaps;
-            const zlim = [0, zlimStep];
+        // Create numMaps number of DynamicDecisionMap instances in advance
+        for (let i = 0; i < this.numMaps; i++) {
+            const minZ = 1 / this.numMaps;
+            const maxZ = 1;
+            const zlim = [minZ, maxZ];
             const colormap = this.colormaps[i % this.colormaps.length];
 
-            const decisionMapInstance = new DynamicDecisionMap({
-                div: this.div,
-                xlim: this.xlim,
-                ylim: this.ylim,
-                zlim: zlim,
-                colormap: colormap
+            const ddm = new DynamicDecisionMap({
+                div,
+                xlim,
+                ylim,
+                zlim,
+                gridShape,
+                colormap
             });
 
-            this.decisionMaps.push(decisionMapInstance);
+            this.decisionMaps.push(ddm);
         }
     }
 
     async update(data) {
-        const { decisionMaps, gradientMaps, realData, fakeData } = data;
-        const numMaps = decisionMaps.length;
+        const { decisionMaps, gradientMap, realData, fakeData } = data;
 
         // Update only the necessary number of maps
-        for (let i = 0; i < this.maxMaps; i++) {
-            if (i < numMaps) {
-                const decisionMap = decisionMaps[i];
-                const gradientMap = gradientMaps[i];
-
+        for (let i = 0; i < this.numMaps; i++) {
+            const decisionMap = decisionMaps[i];
+            if (i == this.numMaps - 1) {
                 await this.decisionMaps[i].update({
                     decisionMap,
                     gradientMap,
@@ -418,29 +455,14 @@ class DynamicMultiDecisionMap {
                     fakeData
                 });
             } else {
-                // If there are fewer decision maps than maxMaps, update with empty data
+                // Avoid updating the real and fake data for the rest of the maps
                 await this.decisionMaps[i].update({
-                    decisionMap: [],
+                    decisionMap,
                     gradientMap: [],
                     realData: [],
                     fakeData: []
                 });
             }
         }
-
-        // Bring all maps to front in order
-        this.decisionMaps.forEach(map => map.bringToFront());
-    }
-
-    async plot(modelHandler) {
-        // Randomly select 500 points from the real data
-        const realData = d3.shuffle(modelHandler.inputData).slice(0, 200);
-        const fakeData = modelHandler.generate(200);
-
-        const decisionMaps = modelHandler.decisionMaps(); // Should return an array of decision maps
-        const gradientMaps = modelHandler.gradientMaps(); // Should return an array of gradient maps
-        const data = { realData, fakeData, decisionMaps, gradientMaps };
-
-        await this.update(data);
     }
 }
