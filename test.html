@@ -1,50 +1,94 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>TensorFlow.js Custom Normalization Layer Example</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <meta charset="UTF-8">
+    <title>DynamicMultiDecisionMap Test</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="DynamicMultiDecisionMap.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>
+    <script src="utils.js"></script>
+    <style>
+        svg {
+            border: 1px solid black;
+        }
+    </style>
 </head>
 <body>
-    <h1>TensorFlow.js Custom Normalization Layer Example</h1>
+    <div id="chart"></div>
     <script>
-        // Define a custom layer that normalizes the input tensor
-        class NormalizeLayer extends tf.layers.Layer {
-            constructor(config) {
-                super(config);
-                this.normalizationValue = config.normalizationValue;
-            }
+        // Assuming the necessary classes (DynamicDecisionMap, DynamicQuiverPlot, etc.) are defined above this script
 
-            call(inputs) {
-                const input = inputs[0];
-                return tf.div(input, tf.scalar(this.normalizationValue));
-            }
+        // Mock Model Handler
+        const modelHandler = {
+            inputData: d3.range(1000).map(() => [Math.random(), Math.random()]),
+            generate: (num) => d3.range(num).map(() => [Math.random(), Math.random()]),
+            decisionMaps: () => [
+                d3.range(100).map(() => d3.range(100).map(() => Math.random())),
+                d3.range(100).map(() => d3.range(100).map(() => Math.random()))
+            ],
+            gradientMaps: () => [
+                d3.range(100).map(() => d3.range(100).map(() => [Math.random(), Math.random(), Math.random(), Math.random()])),
+                d3.range(100).map(() => d3.range(100).map(() => [Math.random(), Math.random(), Math.random(), Math.random()]))
+            ]
+        };
 
-            static get className() {
-                return 'NormalizeLayer';
+        // Create an SVG element
+        const div = d3.select("#chart")
+            .append("svg")
+            .attr("width", 800)
+            .attr("height", 600);
+
+        // Instantiate the DynamicMultiDecisionMap
+        const multiDecisionMap = new DynamicMultiDecisionMap({
+            div: "#chart",
+            xlim: [0, 1],
+            ylim: [0, 1],
+            maxMaps: 2 // We can test with 2 maps as a basic example
+        });
+
+        // Plot the data using the mock model handler
+        multiDecisionMap.plot(modelHandler);
+
+        // Function to check if SVG has the expected number of paths (contours)
+        function checkContours() {
+            const contours = div.selectAll("path").nodes();
+            console.log(`Number of contour paths: ${contours.length}`);
+            if (contours.length > 0) {
+                console.log("Contours are present.");
+            } else {
+                console.log("Contours are missing.");
             }
         }
 
-        // Register the custom layer
-        // tf.serialization.registerClass(NormalizeLayer);
+        // Function to check if SVG has the expected number of arrows (quiver plot)
+        function checkArrows() {
+            const arrows = div.selectAll("line.arrow").nodes();
+            console.log(`Number of arrows: ${arrows.length}`);
+            if (arrows.length > 0) {
+                console.log("Arrows are present.");
+            } else {
+                console.log("Arrows are missing.");
+            }
+        }
 
-        // Create a symbolic tensor (input tensor)
-        const input = tf.input({shape: [10]});
+        // Function to check if SVG has the expected number of circles (scatter plot)
+        function checkCircles() {
+            const circles = div.selectAll("circle").nodes();
+            console.log(`Number of circles: ${circles.length}`);
+            if (circles.length > 0) {
+                console.log("Circles are present.");
+            } else {
+                console.log("Circles are missing.");
+            }
+        }
 
-        // Create the custom normalization layer
-        const normalizeLayer = new NormalizeLayer({normalizationValue: 5.0});
-
-        // Apply the normalization layer to the input tensor
-        const normalizedOutput = normalizeLayer.apply(input);
-
-        // Create a model to hold the normalized tensor
-        const model = tf.model({inputs: input, outputs: normalizedOutput});
-
-        // Create some dummy input data
-        const inputData = tf.ones([2, 10]); // Two samples, each with 10 features
-
-        // Get the model output
-        const output = model.predict(inputData);
-        output.print(); // Should print the normalized tensor
+        // Execute the checks after a delay to ensure rendering is complete
+        setTimeout(() => {
+            checkContours();
+            checkArrows();
+            checkCircles();
+        }, 2000); // 2-second delay for rendering
     </script>
 </body>
 </html>

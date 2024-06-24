@@ -42,10 +42,11 @@
             "Classifier": { cx: 200, cy: 200, width: 120, height: 30, label: "Classifier (Q)", fill: "#B8B8B8" },
             "X_real": { cx: 100, cy: 300, width: 60, height: 30, label: "X real" },
             "X_fake": { cx: 300, cy: 300, width: 60, height: 30, label: "X fake" },
+            "X_real_2": { cx: 500, cy: 300, width: 60, height: 30, label: "X real" },
             "Generator": { cx: 300, cy: 400, width: 120, height: 30, label: "Generator (G)", fill: "#B8B8B8" },
             "Discriminator": { cx: 500, cy: 100, width: 150, height: 30, label: "Discriminator (D)", fill: "#B8B8B8" },
-            "real": { cx: 400, cy: 30, width: 50, height: 30, label: "real" },
-            "fake": { cx: 600, cy: 30, width: 50, height: 30, label: "fake" },
+            "real": { cx: 600, cy: 30, width: 50, height: 30, label: "real" },
+            "fake": { cx: 400, cy: 30, width: 50, height: 30, label: "fake" },
             "c_code": { cx: 200, cy: 500, width: 50, height: 30, label: "code" },
             "z_noise": { cx: 400, cy: 500, width: 50, height: 30, label: "latent" },
             "C1": { cx: 150, cy: 600, width: 30, height: 30, label: "C1", fill: "#A3C1DA" },
@@ -84,11 +85,12 @@
             .on("click", function() {
                 const elem = d3.select(this);
                 const id = elem.attr("id");
-                if (id.startsWith("C")) {
+                if (id.startsWith("C") || id.startsWith("D")) {
                     const dId = "D" + id[1];
+                    const cId = "C" + id[1];
+                    const cBox = d3.select("#" + cId).select("rect");
                     const dBox = d3.select("#" + dId).select("rect");
-                    const box = elem.select("rect");
-                    box.classed("inactive", !box.classed("inactive"));
+                    cBox.classed("inactive", !cBox.classed("inactive"));
                     dBox.classed("inactive", !dBox.classed("inactive"));
                 }
             });
@@ -100,7 +102,8 @@
             { source: "Classifier", target: "X_real" },
             { source: "Classifier", target: "X_fake" },
             { source: "X_fake", target: "Generator" },
-            { source: "Generator", target: "Discriminator" },
+            { source: "X_fake", target: "Discriminator" },
+            { source: "X_real_2", target: "Discriminator" },
             { source: "Discriminator", target: "real" },
             { source: "Discriminator", target: "fake" },
             { source: "c_code", target: "Generator" },

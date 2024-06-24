@@ -5,7 +5,7 @@ const InfoGAN = (function() {
         constructor(
             {
                 latentDim = 100,
-                codeDim = 2,
+                codeDim = 3,
                 genLayers = 1,
                 genStartDim = 1024,
                 discLayers = 1,
@@ -138,36 +138,33 @@ const InfoGAN = (function() {
                     this.realSamplesBuff.set(x, i, 0);
                     this.realSamplesBuff.set(y, i, 1);
                 }
-                // const logValues = tf.tidy(() => {
-                    const realSamples = this.realSamplesBuff.toTensor();
-                    const gLatent = tf.randomNormal([this.batchSize, this.latentDim]);
-                    const idxs = randInt(0, this.codeDim, this.batchSize);
-                    const gCode = tf.oneHot(idxs, this.codeDim);
+                const realSamples = this.realSamplesBuff.toTensor();
+                const gLatent = tf.randomNormal([this.batchSize, this.latentDim]);
+                const idxs = randInt(0, this.codeDim, this.batchSize);
+                const gCode = tf.oneHot(idxs, this.codeDim);
 
-                    const fakeSamples = this.generator.predict([gLatent, gCode]);
+                const fakeSamples = this.generator.predict([gLatent, gCode]);
 
-                    const dInputs = tf.concat([realSamples, fakeSamples]);
-                    const dLabelsCombined = tf.concat([realLabels, fakeLabels]);
+                const dInputs = tf.concat([realSamples, fakeSamples]);
+                const dLabelsCombined = tf.concat([realLabels, fakeLabels]);
 
-                    const logValues = { iter, gLoss: 0, dLoss: 0, qLoss: 0 };
+                const logValues = { iter, gLoss: 0, dLoss: 0, qLoss: 0 };
 
-                    // Train Discriminator
-                    this.discriminator.trainable = true;
-                    this.generator.trainable = false;
-                    this.qNetwork.trainable = false;
-                    const dLoss = await this.discriminator.trainOnBatch(dInputs, dLabelsCombined);
-                    logValues.dLoss = dLoss;
+                // Train Discriminator
+                this.discriminator.trainable = true;
+                this.generator.trainable = false;
+                this.qNetwork.trainable = false;
+                const dLoss = await this.discriminator.trainOnBatch(dInputs, dLabelsCombined);
+                logValues.dLoss = dLoss;
 
-                    // Train Generator and Q Network
-                    this.discriminator.trainable = false;
-                    this.generator.trainable = true;
-                    this.qNetwork.trainable = false;
-                    const gqLoss = await this.combinedModel.trainOnBatch([gLatent, gCode], [realLabels, gCode]);
-                    logValues.gLoss = gqLoss[1];
-                    logValues.qLoss = gqLoss[2];
+                // Train Generator and Q Network
+                this.discriminator.trainable = false;
+                this.generator.trainable = true;
+                this.qNetwork.trainable = false;
+                const gqLoss = await this.combinedModel.trainOnBatch([gLatent, gCode], [realLabels, gCode]);
+                logValues.gLoss = gqLoss[1];
+                logValues.qLoss = gqLoss[2];
 
-                //     return logValues;
-                // });
                 tf.dispose([
                     realSamples, 
                     gLatent,
@@ -184,17 +181,16 @@ const InfoGAN = (function() {
         }
 
         generate(nSamples) {
-            return tf.tidy(() => {
-                const gLatent = tf.randomNormal([nSamples, this.latentDim]);
-                const codeInts = Array.from(
-                    { length: nSamples },
-                    () => Math.floor(Math.random() * this.codeDim)
-                );
-                const gCode = tf.oneHot(codeInts, this.codeDim);
-                const pred = this.generator.predict([gLatent, gCode]);
-                const ret = pred.arraySync();
-                return ret;
-            });
+            const gLatent = tf.randomNormal([nSamples, this.latentDim]);
+            const codeInts = Array.from(
+                { length: nSamples },
+                () => Math.floor(Math.random() * this.codeDim)
+            );
+            const gCode = tf.oneHot(codeInts, this.codeDim);
+            const pred = this.generator.predict([gLatent, gCode]);
+            const ret = pred.arraySync();
+            tf.dispose([gLatent, gCode, pred]);
+            return ret;   
         }
     
         dispose() {
@@ -206,11 +202,19 @@ const InfoGAN = (function() {
         constructor(inputData) {
             this.inputData = inputData;
             this.gan = new InfoGAN();
-            this.ddm = new DynamicDecisionMap({
+            // this.ddm = new DynamicDecisionMap({
+            //     div: '#mainGANPlot',
+            //     xlim: [-1, 1],
+            //     ylim: [-1, 1],
+            //     zlim: [0, 1],
+            // });
+
+            this.ddm = new DynamicMultiDecisionMap({
                 div: '#mainGANPlot',
                 xlim: [-1, 1],
                 ylim: [-1, 1],
                 zlim: [0, 1],
+                maxMaps: 3,
             });
 
             this.isInitialized = false;
@@ -223,7 +227,10 @@ const InfoGAN = (function() {
                 this.gLossVisor.push({ x: iter, y: gLoss });
                 this.dLossVisor.push({ x: iter, y: dLoss });
                 this.qLossVisor.push({ x: iter, y: qLoss });
-                await this.ddm.plot(this);
+                
+                const ret = this.QDAGMap();
+                console.log(ret);
+                // await this.ddm.plot(this);
                 this.fpsCounter.update();
             }
 
@@ -261,23 +268,59 @@ const InfoGAN = (function() {
             return this.gan.generate(nSamples);
         }
 
-        decisionAndGradientMap() {
-            return tf.tidy(() => {
-                const points = this.decisionMapInputBuff;
-                const res = tf.valueAndGrad(
-                    point => {
-                        return this.gan.discriminator.predict(point);
-                    })(points);
+        // DAG = Decision and Gradient
+        DiscriminatorDAGMap() {
+            const points = this.decisionMapInputBuff;
+            const res = tf.valueAndGrad(
+                point => {
+                    return this.gan.discriminator.predict(point);
+                })(points);
 
-                const pred2D = res.value.reshape([this.gridSize, this.gridSize]);
-                const xyuv = tf.concat([points, res.grad], 1);
+            const pred2D = res.value.reshape([this.gridSize, this.gridSize]);
+            const xyuv = tf.concat([points, res.grad], 1);
+            const xyuv2D = xyuv.reshape([this.gridSize, this.gridSize, 4]);
+            const ret = {
+                decisionMap: pred2D.arraySync(),
+                gradientMap: xyuv2D.arraySync()
+            };
+
+            tf.dispose([points, res, pred2D, xyuv, xyuv2D]);
+            return ret;
+        }
+
+        QDAGMap() {
+            const points = this.decisionMapInputBuff;
+            // const preds = this.gan.qNetwork.predict(points);
+
+            const pred2Ds = [];
+            const xyuv2Ds = [];
+            for (let i = 0; i < this.gan.codeDim; i++) {
+                const {value: pred, grad} = tf.valueAndGrad((point) => {
+                    return this.gan.qNetwork.predict(point).gather([i], 1);
+                })(points);
+
+                const pred2D = pred.reshape([this.gridSize, this.gridSize]);
+                pred2Ds.push(pred2D.arraySync());
+
+                const xyuv = tf.concat([points, grad], 1);
                 const xyuv2D = xyuv.reshape([this.gridSize, this.gridSize, 4]);
-                const ret = {
-                    decisionMap: pred2D.arraySync(),
-                    gradientMap: xyuv2D.arraySync()
-                };
-                return ret;
-            });
+                xyuv2Ds.push(xyuv2D.arraySync());
+
+                tf.dispose([pred, pred2D, grad, xyuv, xyuv2D]);
+            }
+
+            // const pred2D = res.value.reshape([this.gridSize, this.gridSize]);
+            // const xyuv = tf.concat([points, res.grad], 1);
+            // const xyuv2D = xyuv.reshape([this.gridSize, this.gridSize, 4]);
+            // const ret = {
+            //     decisionMap: pred2D.arraySync(),
+            //     gradientMap: xyuv2D.arraySync()
+            // };
+            const ret = {
+                decisionMaps: pred2Ds,
+                gradientMaps: xyuv2Ds,
+            };
+            return ret;
         }
 
         async trainToggle(data) {

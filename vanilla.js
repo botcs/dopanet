@@ -159,12 +159,13 @@ const VanillaGAN = (function() {
             tf.dispose([realLabels, fakeLabels, dLabels]);
         }
 
-        generate(nSamples) { return tf.tidy(() => {
+        generate(nSamples) {
             const latentPoints = tf.randomNormal([nSamples, this.latentDim]);
             const pred = this.generator.predict(latentPoints);
             const ret = pred.arraySync();
+            tf.dispose([latentPoints, pred]);
             return ret;
-        });}
+        }
 
         dispose() {
             tf.dispose([this.generator, this.discriminator, this.gan]);
@@ -222,7 +223,7 @@ const VanillaGAN = (function() {
         generate(nSamples) { return this.gan.generate(nSamples) }
 
 
-        decisionAndGradientMap() { return tf.tidy(() => {
+        decisionAndGradientMap() {
             const points = this.decisionMapInputBuff;
 
             // Use tf.valueAndGrad to get both predictions and gradients
@@ -236,8 +237,9 @@ const VanillaGAN = (function() {
                 decisionMap: pred2D.arraySync(), 
                 gradientMap: xyuv2D.arraySync() 
             };
+            tf.dispose([points, res, pred2D, xyuv, xyuv2D]);
             return ret;
-        });}
+        }
 
         async trainToggle(data) {
             if (!this.isInitialized) await this.init();
