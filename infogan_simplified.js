@@ -291,7 +291,8 @@ const InfoGAN = (function() {
 
         QDAGMaps() {
             const points = this.decisionMapInputBuff;
-            const preds = this.gan.qNetwork.predict(points).transpose();
+            const preds = this.gan.qNetwork.predict(points);
+            const predsT = preds.transpose();
 
             // Only return the highest probability's gradient
             const grad = tf.grad((point) => {
@@ -300,6 +301,7 @@ const InfoGAN = (function() {
 
             const xyuv = tf.concat([points, grad], 1);
 
+            // To generate the gradients for each output:
             // const preds = [];
             // const xyuvs = [];
             // for (let i = 0; i < this.gan.codeDim; i++) {
@@ -316,10 +318,10 @@ const InfoGAN = (function() {
             // }
 
             const ret = {
-                decisionMaps: preds.arraySync(),
+                decisionMaps: predsT.arraySync(),
                 gradientMap: xyuv.arraySync()
             };
-            tf.dispose([preds, grad, xyuv]);
+            tf.dispose([preds, predsT, grad, xyuv]);
             return ret;
         }
 
