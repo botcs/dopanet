@@ -10,6 +10,14 @@
     <div class="topSection wrapContainer">
         <div class="wrappedItem">
             <h2>Generative Adversarial Networks Playground</h2>
+            <p>
+            In this demo you can experiment with training a Generative Adversarial Network (GAN) to generate samples from a simple 2D distribution. 
+            The GAN is trained to generate samples that are indistinguishable from the real data distribution. 
+            The key component is that you don't have to have access to the real data distribution, you only need to be able to sample from it.
+            Go on the right hand side canvas to put down samples for your distribution,
+            and scroll down to see how different variations of GANs learn to generate samples from it.
+            </p>
+
             <label for="pointsPerSecond">Speed:</label>
             <input type="range" id="pointsPerSecond" min="10" max="500" value="20">
             <span id="pointsPerSecondValue">100</span>
