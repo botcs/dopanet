@@ -1,6 +1,6 @@
 const InfoGANDiagram = (function() {
     function constructDescription(div) {
-        const infoganData = {
+        const data = {
             title: "InfoGAN",
             description: "InfoGAN is an advanced Generative Adversarial Network (GAN) that extends the standard GAN architecture by incorporating a Q network to learn interpretable latent codes. The architecture of InfoGAN consists of three main components:",
             components: [
@@ -15,17 +15,17 @@ const InfoGANDiagram = (function() {
         // Append the InfoGAN content to the container using D3.js
         const container = div;
 
-        container.append("h1").text(infoganData.title);
+        container.append("h1").text(data.title);
 
-        container.append("p").text(infoganData.description);
+        container.append("p").text(data.description);
 
         const ol = container.append("ol");
-        infoganData.components.forEach(component => {
+        data.components.forEach(component => {
             ol.append("li").html(`<strong>${component.split(':')[0]}</strong>: ${component.split(':')[1]}`);
         });
 
         container.append("h2").text("Information Flow");
-        container.append("p").text(infoganData.flowDescription);
+        container.append("p").text(data.flowDescription);
     }
 
     function constructDiagram(div) {

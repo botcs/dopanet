@@ -40,7 +40,7 @@ const VanillaGANDiagram = (function() {
         };
 
         const container = div;
-        container.append("h1").text(explanationData.title);
+        container.append("h3").text(explanationData.title);
         const ol = container.append("ol");
         explanationData.steps.forEach(step => {
             ol.append("li").text(step);

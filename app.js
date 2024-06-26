@@ -2,11 +2,8 @@
 function main(){
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    const pointsPerSecondInput = document.getElementById('pointsPerSecond');
-    const rangeInput = document.getElementById('range');
     const resetCanvasButton = document.getElementById('resetCanvasButton');
-    const pointsPerSecondValue = document.getElementById('pointsPerSecondValue');
-    const rangeValue = document.getElementById('rangeValue');
+    const toggleVisorButton = document.getElementById('toggleVisorButton');
 
     const inputData = [];
     const normalizedInputData = [];
@@ -14,11 +11,12 @@ function main(){
     modelHandlers = {
         'vanilla': new VanillaGAN.ModelHandler(normalizedInputData),
         'infogan': new InfoGAN.ModelHandler(normalizedInputData),
+        'madgan': new MADGAN.ModelHandler(normalizedInputData),
     };
 
     let isDrawing = false;
-    let pointsPerSecond = parseInt(pointsPerSecondInput.value, 10);
-    let range = parseInt(rangeInput.value, 10);
+    let pointsPerSecond = 20;
+    let range = 20;
     let lastTime = 0;
     let mouseX = 0;
     let mouseY = 0;
@@ -84,23 +82,18 @@ function main(){
     canvas.height = parseInt(canvasStyle.height, 10);
 
 
-    // Register event listeners
-    pointsPerSecondInput.addEventListener('input', () => {
-        pointsPerSecond = parseInt(pointsPerSecondInput.value, 10);
-        pointsPerSecondValue.textContent = pointsPerSecond;
-    });
-
-    rangeInput.addEventListener('input', () => {
-        range = parseInt(rangeInput.value, 10);
-        rangeValue.textContent = range;
-    });
-
     resetCanvasButton.addEventListener('click', () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         // Clear the points array.
         inputData.length = 1;
         normalizedInputData.length = 1;
     });
+
+    toggleVisorButton.addEventListener('click', () => {
+        const visor = tfvis.visor();
+        visor.toggle();
+    });
+
 
 
     canvas.addEventListener('mousedown', (event) => {
@@ -158,26 +151,8 @@ function main(){
         event.preventDefault();
     });
 
+
     document.addEventListener('keydown', (event) => {
-        if (event.key === 'w' || event.key === 'W') {
-            pointsPerSecond -= 10;
-            pointsPerSecondInput.value = pointsPerSecond;
-            pointsPerSecondValue.textContent = pointsPerSecond;
-        } else if (event.key === 'e' || event.key === 'E') {
-            pointsPerSecond += 10;
-            if (pointsPerSecond < 10) pointsPerSecond = 10;
-            pointsPerSecondInput.value = pointsPerSecond;
-            pointsPerSecondValue.textContent = pointsPerSecond;
-        } else if (event.key === 's' || event.key === 'S') {
-            range -= 5;
-            rangeInput.value = range;
-            rangeValue.textContent = range;
-        } else if (event.key === 'd' || event.key === 'D') {
-            range += 5;
-            if (range < 10) range = 10;
-            rangeInput.value = range;
-            rangeValue.textContent = range;
-        }
         if (event.key === 't') {
             // toggle the css of the .bottomSection to overflow-y: unset / auto
             if (document.querySelector('.bottomSection').style['overflow-y'] === 'unset') {

@@ -1,6 +1,22 @@
 // InfoGAN.js
-
 const InfoGAN = (function() {
+    // Function to reset the weights
+    async function resetWeights(model, initializerName = 'glorotNormal') {
+        for (let layer of model.layers) {
+            if (layer.getWeights().length > 0) {
+                // Get the shape of the weights
+                const originalWeights = layer.getWeights();
+                const resetWeights = originalWeights.map(weight => {
+                    const shape = weight.shape;
+                    return tf.initializers[initializerName]().apply(shape);
+                });
+
+                // Set the weights
+                layer.setWeights(resetWeights);
+            }
+        }
+    }
+
     class InfoGAN {
         constructor(
             {
@@ -55,8 +71,6 @@ const InfoGAN = (function() {
         }
     
         buildGenerator({latentDim, codeDim, numLayers, startDim}={}) {
-            console.log(`Building Generator with latentDim: ${latentDim}, codeDim: ${codeDim}, numLayers: ${numLayers}, startDim: ${startDim}`);
-
             this.gLatent = tf.input({ shape: [latentDim] });
             this.gCode = tf.input({ shape: [codeDim] });
             
@@ -152,6 +166,17 @@ const InfoGAN = (function() {
             }
             tf.dispose([realData, codeData, fakeData]);
             return ret;
+        }
+
+        async reset() {
+            // reset the weights and biases of the generator and discriminator
+            
+            // await together for both models
+            await Promise.all([
+                resetWeights(this.generator), 
+                resetWeights(this.discriminator)
+            ]);
+            
         }
 
         async trainToggle(data, callback = null) {
@@ -430,7 +455,7 @@ const InfoGAN = (function() {
         }
 
         async reset() {
-            this.gan.resetParams();
+            this.gan.reset();
             this.gLossVisor.clear();
             this.dLossVisor.clear();
             this.qLossVisor.clear();

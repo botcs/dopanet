@@ -44,7 +44,7 @@ path.diagram {
 }
 
 .topSection {
-    height: 50%;
+    /* height: 50%; */
     display: flex;
     padding-bottom: 1em;
     justify-content: center;
@@ -52,7 +52,7 @@ path.diagram {
 }
 
 .bottomSection {
-    height: 100%;
+    /* height: 100%; */
     display: flex;
     justify-content: center;
     overflow-y: auto;
@@ -84,7 +84,7 @@ canvas {
 }
 
 .plot {
-    height: 45vh;
+    height: 30vh;
     width: 100%;
     border: 1px solid black;
 }

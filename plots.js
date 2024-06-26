@@ -435,7 +435,10 @@ class DynamicMultiDecisionMap {
         this.colormaps = [
             d3.interpolateRgb("#D0E5FA", "#B3CDE3"), // Light blue gradient
             d3.interpolateRgb("#D6EFD6", "#A9CFA9"), // Light green gradient
-            d3.interpolateRgb("#FAE0D6", "#E1B09E")  // Light orange gradient
+            d3.interpolateRgb("#FAE0D6", "#E1B09E"),  // Light orange gradient
+            // Viridis
+            d3.interpolateViridis,
+            // d3.interpolateRgb("#D0D0D0", "#F0F0F0"), // light gray gradient
         ];
 
         this.group = group;

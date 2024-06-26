@@ -9,7 +9,7 @@
 <body>
     <div class="topSection wrapContainer">
         <div class="wrappedItem">
-            <h2>Generative Adversarial Networks Playground</h2>
+            <h1>Generative Adversarial Networks Playground</h1>
             <p>
             In this demo you can experiment with training a Generative Adversarial Network (GAN) to generate samples from a simple 2D distribution. 
             The GAN is trained to generate samples that are indistinguishable from the real data distribution. 
@@ -17,16 +17,13 @@
             Go on the right hand side canvas to put down samples for your distribution,
             and scroll down to see how different variations of GANs learn to generate samples from it.
             </p>
-
-            <label for="pointsPerSecond">Speed:</label>
-            <input type="range" id="pointsPerSecond" min="10" max="500" value="20">
-            <span id="pointsPerSecondValue">100</span>
-            <br>
-            <label for="range">Range:</label>
-            <input type="range" id="range" min="10" max="100" value="20">
-            <span id="rangeValue">50</span>
+            <p>
+            <b>Tip:</b>
+            To track the training, click the Open Visor button or press ` on your keyboard.
+            </p>
             <br>
             <button id="resetCanvasButton">Reset</button>
+            <button id="toggleVisorButton">Toggle Visor</button>
         </div>
         <canvas id="canvas" class="wrappedItem plot"></canvas>
     </div>
@@ -53,10 +50,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=EB+Garamond&display=swap" rel="stylesheet">
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="vanillagan.js"></script>
     <script src="vanillagan_diagram.js"></script>
+    <script src="vanillagan.js"></script>
     <script src="infogan_diagram.js"></script>
     <script src="infogan_simplified.js"></script>
+    <script src="madgan_diagram.js"></script>
+    <script src="madgan.js"></script>
     <script src="utils.js"></script>
     <script src="plots.js"></script>
     <script src="app.js"></script>
