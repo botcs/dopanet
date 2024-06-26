@@ -218,19 +218,21 @@ const VanillaGAN = (function() {
                 .classed('wrappedItem', true);
 
             VanillaGANDiagram.constructDiagram(diagram); 
-                
-            this.trainToggleButton = description.append('button')
-                .text('Train')
-                .on('click', () => this.trainToggle());
-
-            description.append('button')
-                .text('Reset')
-                .on('click', () => this.reset());
-
 
             const explanation = modelCard.append('div')
                 .classed('wrappedItem', true);
             VanillaGANDiagram.constructExplanation(explanation);
+
+
+            this.trainToggleButton = explanation.append('button')
+            .text('Train')
+            .on('click', () => this.trainToggle());
+
+            explanation.append('button')
+                .text('Reset')
+                .on('click', () => this.reset());
+
+
 
             this.discriminatorPlot = modelCard.append('div')
                 .classed('wrappedItem', true)

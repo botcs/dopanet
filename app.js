@@ -2,7 +2,7 @@
 function main(){
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    const resetCanvasButton = document.getElementById('resetCanvasButton');
+    const clearCanvasButton = document.getElementById('clearCanvasButton');
     const toggleVisorButton = document.getElementById('toggleVisorButton');
     const toggleTopSectionButton = document.getElementById('toggleTopSectionButton');
 
@@ -83,7 +83,7 @@ function main(){
     canvas.height = parseInt(canvasStyle.height, 10);
 
 
-    resetCanvasButton.addEventListener('click', () => {
+    clearCanvasButton.addEventListener('click', () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         // Clear the points array.
         inputData.length = 1;
@@ -163,7 +163,7 @@ function main(){
     }
 
     toggleTopSectionButton.addEventListener('click', toggleTopSectionHover);
-    
+
     document.addEventListener('keydown', (event) => {
         if (event.key === 't') {
             toggleTopSectionHover();
