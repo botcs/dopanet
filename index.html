@@ -3,38 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generative Adversarial Training</title>
+    <title>Generative Adversarial Networks Playground</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>Generative Adversarial Networks Playground</h1>
-    <div>
-        <label for="pointsPerSecond">Points per second:</label>
-        <input type="range" id="pointsPerSecond" min="10" max="500" value="100">
-        <span id="pointsPerSecondValue">100</span>
-        <br>
-        <label for="range">Range:</label>
-        <input type="range" id="range" min="10" max="100" value="50">
-        <span id="rangeValue">50</span>
-        <br>
-        <button id="resetCanvasButton">Reset</button>
+    <div class="topSection wrapContainer">
+        <div class="wrappedItem">
+            <h2>Generative Adversarial Networks Playground</h2>
+            <label for="pointsPerSecond">Speed:</label>
+            <input type="range" id="pointsPerSecond" min="10" max="500" value="20">
+            <span id="pointsPerSecondValue">100</span>
+            <br>
+            <label for="range">Range:</label>
+            <input type="range" id="range" min="10" max="100" value="20">
+            <span id="rangeValue">50</span>
+            <br>
+            <button id="resetCanvasButton">Reset</button>
+        </div>
+        <canvas id="canvas" class="wrappedItem plot"></canvas>
     </div>
-    <canvas id="canvas"></canvas>
 
-    <!-- Add a selector for the GAN -->
-    <div id="controlBox">
-        <select id="modelSelect">
-            <option value="vanilla">Vanilla GAN</option>
-            <option value="infogan" selected>InfoGAN</option>
-        </select>
-    <div>
-        <button id="trainGANButton">Train</button>
-        <button id="resetGANButton">Reset Modell</button>
-    </div>
-    <div id="GANBox">
-        <div id="mainGANPlot"></div>
-        <div id="GANPlot2"></div>
-        <div id="GANPlot3"></div>
+    <div class="bottomSection">
+        <div id="modelEntryContainer">
+
+        </div>
+        <!-- <div id="controlBox">
+            <select id="modelSelect">
+                <option value="vanilla">Vanilla GAN</option>
+                <option value="infogan" selected>InfoGAN</option>
+            </select>
+            <div>
+                <button id="trainGANButton">Train</button>
+                <button id="resetGANButton">Reset Model</button>
+            </div>
+        </div> -->
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
@@ -42,6 +44,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="vanilla.js"></script>
+    <script src="infogan_diagram.js"></script>
     <script src="infogan_simplified.js"></script>
     <script src="utils.js"></script>
     <script src="plots.js"></script>

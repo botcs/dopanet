@@ -5,20 +5,17 @@ function main(){
     const pointsPerSecondInput = document.getElementById('pointsPerSecond');
     const rangeInput = document.getElementById('range');
     const resetCanvasButton = document.getElementById('resetCanvasButton');
-    const trainGANButton = document.getElementById('trainGANButton');
-    const resetGANButton = document.getElementById('resetGANButton');
     const pointsPerSecondValue = document.getElementById('pointsPerSecondValue');
     const rangeValue = document.getElementById('rangeValue');
-    const modelSelect = document.getElementById('modelSelect');
 
     const inputData = [];
     const normalizedInputData = [];
 
     modelHandlers = {
-        'vanilla': new VanillaGAN.ModelHandler(normalizedInputData),
+        // 'vanilla': new VanillaGAN.ModelHandler(normalizedInputData),
+        'infogan': new InfoGAN.ModelHandler(normalizedInputData),
         'infogan': new InfoGAN.ModelHandler(normalizedInputData),
     };
-    let selectedMH = modelHandlers[modelSelect.value];
 
     let isDrawing = false;
     let pointsPerSecond = parseInt(pointsPerSecondInput.value, 10);
@@ -107,24 +104,6 @@ function main(){
     });
 
 
-    trainGANButton.addEventListener('click', () => {
-        selectedMH.trainToggle(normalizedInputData);
-        if (trainGANButton.textContent !== 'Stop Training') {
-            trainGANButton.textContent = 'Stop Training';
-        } else {
-            trainGANButton.textContent = 'Resume Training';
-        }
-    });
-
-    resetGANButton.addEventListener('click', () => {
-        selectedMH.reset();
-    });
-
-    modelSelect.addEventListener('change', () => {
-        selectedMH.stopTraining();
-        selectedMH = modelHandlers[modelSelect.value];
-    });
-
     canvas.addEventListener('mousedown', (event) => {
         isDrawing = true;
         lastTime = Date.now();
@@ -200,12 +179,16 @@ function main(){
             rangeInput.value = range;
             rangeValue.textContent = range;
         }
+        if (event.key === 't') {
+            // toggle the css of the .bottomSection to overflow-y: unset / auto
+            if (document.querySelector('.bottomSection').style['overflow-y'] === 'unset') {
+                document.querySelector('.bottomSection').style['overflow-y'] = 'auto';
+            } else {
+                document.querySelector('.bottomSection').style['overflow-y'] = 'unset';
+            }
+        }
     });
 
-
-    // tfvis.visor().close();
-    // Set tf.visor to be hidden by default
-    // tfvis.visor().toggle();
     tfvis.visor().close();
 
     // Set up periodic printing of the number of tensors
@@ -223,10 +206,7 @@ function main(){
 
     // Set up periodic FPS logging
     window.fps = new FPSCounter("Main Loop FPS", 2000);
-    window.fps.start();
-
-
-    
+    window.fps.start();    
 }
 
 

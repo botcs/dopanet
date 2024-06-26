@@ -222,26 +222,83 @@ const InfoGAN = (function() {
         constructor(inputData) {
             this.inputData = inputData;
             this.gan = new InfoGAN();
-            // this.ddm = new DynamicDecisionMap({
-            //     div: '#mainGANPlot',
-            //     xlim: [-1, 1],
-            //     ylim: [-1, 1],
-            //     zlim: [0, 1],
-            // });
+            this.isInitialized = false;
+            
+            // Build the DOM entry
+            this.modelEntry = d3.select('#modelEntryContainer').append('div')
+                .attr('class', 'modelEntry')
+                .attr('id', 'InfoGAN');
 
-            this.ddm = new DynamicMultiDecisionMap({
-                div: '#mainGANPlot',
+            this.modelEntry
+            const modelCard = this.modelEntry.append('div')
+                .classed('wrapContainer', true);
+
+            const description = modelCard.append('div')
+                .classed('wrappedItem', true);
+            
+            description.append('h3').text('InfoGAN')
+            description.append('p')
+                .text('InfoGAN is a GAN that incorporates a Q network to learn latent codes.Q network to learn latent codes.Q network to learn latent codes.Q network to learn latent codes.Q network to learn latent codes.Q network to learn latent codes.Q network to learn latent codes.')
+                
+                
+            const diagram = modelCard.append('div')
+                .attr('id', 'InfoGANDiagram')
+                .classed('wrappedItem', true);
+
+            InfoGANDiagram.constructDiagram(diagram);
+
+            
+            // modelEntry.append('p').text('InfoGAN is a GAN that incorporates a Q network to learn latent codes.');
+            // const controlBox = modelCard.append('div')
+            //     .classed('wrapContainer', true);
+                
+            this.trainToggleButton = description.append('button')
+                .text('Train')
+                .attr('id', 'trainInfoGANButton')
+                .on('click', () => this.trainToggle());
+
+            description.append('button')
+                .text('Reset')
+                .attr('id', 'resetInfoGANButton')
+                .on('click', () => this.reset());
+
+            // make the plots appear side by side
+
+
+            this.discriminatorPlot = modelCard.append('div')
+                // .attr('class', 'GANPlot')
+                .classed('wrappedItem', true)
+                .classed('plot', true)
+                .append('svg');
+
+            this.QNetworkPlot = modelCard.append('div')
+                // .attr('class', 'GANPlot')
+                .classed('wrappedItem', true)
+                .classed('plot', true)
+                .append('svg');
+
+            
+        }
+
+        async init() {
+            // change the button text
+            this.trainToggleButton.text('Initializing...');
+
+            this.QNetworkPlot = new DynamicMultiDecisionMap({
+                group: this.QNetworkPlot,
                 xlim: [-1, 1],
                 ylim: [-1, 1],
                 zlim: [0, 1],
-                maxMaps: 3,
+                numMaps: 3,
             });
 
-            this.isInitialized = false;
-        }
+            this.discriminatorPlot = new DynamicDecisionMap({
+                group: this.discriminatorPlot,
+                xlim: [-1, 1],
+                ylim: [-1, 1],
+                zlim: [0, 1],
+            });
 
-
-        async init() {
             await this.gan.init();
             
             this.callback = async ({iter, gLoss, dLoss, qLoss}) => {
@@ -254,9 +311,23 @@ const InfoGAN = (function() {
                 // Use the realDataBuff and fakeDataBuff to read data from
                 
                 const {realData, fakeData} = this.gan.readTrainingBuffer();
-                const {decisionMaps, gradientMap} = this.QDAGMaps();
-                const data = { realData, fakeData, decisionMaps, gradientMap };
-                this.ddm.update(data)
+
+                const {decisionMap: ddm, gradientMap: dgm} = this.DiscriminatorDAGMap();
+                this.discriminatorPlot.update({
+                    realData,
+                    fakeData,
+                    decisionMap: ddm,
+                    gradientMap: dgm
+                })
+
+                const {decisionMaps: qdm, gradientMap: qgm} = this.QDAGMaps();
+                this.QNetworkPlot.update({
+                    realData, 
+                    fakeData, 
+                    decisionMaps: qdm, 
+                    gradientMap: qgm
+                });
+
                 this.fpsCounter.update();
             }
 
@@ -308,7 +379,7 @@ const InfoGAN = (function() {
                 gradientMap: xyuv.arraySync()
             };
 
-            tf.dispose([points, res, xyuv]);
+            tf.dispose([pred, grad, xyuv]);
             return ret;
         }
 
@@ -348,9 +419,15 @@ const InfoGAN = (function() {
             return ret;
         }
 
-        async trainToggle(data) {
+        async trainToggle() {
             if (!this.isInitialized) await this.init();
-            this.gan.trainToggle(data, this.callback);
+            this.gan.trainToggle(this.inputData, this.callback);
+            // change the button text
+            if (this.gan.isTraining) {
+                this.trainToggleButton.text('Stop Training');
+            } else {
+                this.trainToggleButton.text('Resume Training');
+            }
         }
 
         async stopTraining() {

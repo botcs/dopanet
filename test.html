@@ -2,93 +2,31 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>DynamicMultiDecisionMap Test</title>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="DynamicMultiDecisionMap.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>
-    <script src="utils.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSS Grid Layout</title>
     <style>
-        svg {
-            border: 1px solid black;
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr); /* Creates 3 equal columns */
+            gap: 10px; /* Optional spacing between grid items */
+        }
+
+        .grid-item {
+            background-color: lightblue;
+            border: 1px solid #333;
+            padding: 20px;
+            text-align: center;
         }
     </style>
 </head>
 <body>
-    <div id="chart"></div>
-    <script>
-        // Assuming the necessary classes (DynamicDecisionMap, DynamicQuiverPlot, etc.) are defined above this script
-
-        // Mock Model Handler
-        const modelHandler = {
-            inputData: d3.range(1000).map(() => [Math.random(), Math.random()]),
-            generate: (num) => d3.range(num).map(() => [Math.random(), Math.random()]),
-            decisionMaps: () => [
-                d3.range(100).map(() => d3.range(100).map(() => Math.random())),
-                d3.range(100).map(() => d3.range(100).map(() => Math.random()))
-            ],
-            gradientMaps: () => [
-                d3.range(100).map(() => d3.range(100).map(() => [Math.random(), Math.random(), Math.random(), Math.random()])),
-                d3.range(100).map(() => d3.range(100).map(() => [Math.random(), Math.random(), Math.random(), Math.random()]))
-            ]
-        };
-
-        // Create an SVG element
-        const div = d3.select("#chart")
-            .append("svg")
-            .attr("width", 800)
-            .attr("height", 600);
-
-        // Instantiate the DynamicMultiDecisionMap
-        const multiDecisionMap = new DynamicMultiDecisionMap({
-            div: "#chart",
-            xlim: [0, 1],
-            ylim: [0, 1],
-            maxMaps: 2 // We can test with 2 maps as a basic example
-        });
-
-        // Plot the data using the mock model handler
-        multiDecisionMap.plot(modelHandler);
-
-        // Function to check if SVG has the expected number of paths (contours)
-        function checkContours() {
-            const contours = div.selectAll("path").nodes();
-            console.log(`Number of contour paths: ${contours.length}`);
-            if (contours.length > 0) {
-                console.log("Contours are present.");
-            } else {
-                console.log("Contours are missing.");
-            }
-        }
-
-        // Function to check if SVG has the expected number of arrows (quiver plot)
-        function checkArrows() {
-            const arrows = div.selectAll("line.arrow").nodes();
-            console.log(`Number of arrows: ${arrows.length}`);
-            if (arrows.length > 0) {
-                console.log("Arrows are present.");
-            } else {
-                console.log("Arrows are missing.");
-            }
-        }
-
-        // Function to check if SVG has the expected number of circles (scatter plot)
-        function checkCircles() {
-            const circles = div.selectAll("circle").nodes();
-            console.log(`Number of circles: ${circles.length}`);
-            if (circles.length > 0) {
-                console.log("Circles are present.");
-            } else {
-                console.log("Circles are missing.");
-            }
-        }
-
-        // Execute the checks after a delay to ensure rendering is complete
-        setTimeout(() => {
-            checkContours();
-            checkArrows();
-            checkCircles();
-        }, 2000); // 2-second delay for rendering
-    </script>
+    <div class="grid-container">
+        <div class="grid-item">1</div>
+        <div class="grid-item">2</div>
+        <div class="grid-item">3</div>
+        <div class="grid-item">4</div>
+        <div class="grid-item">5</div>
+        <div class="grid-item">6</div>
+    </div>
 </body>
 </html>

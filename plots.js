@@ -1,20 +1,21 @@
-
 class DynamicQuiverPlot {
     constructor({
-        svg, 
+        group, 
+        width, 
+        height,
         normalize = "mean", 
         xlim = null, 
         ylim = null,
-        gridshape = [20, 20]
+        gridShape = [20, 20]
     }={}) {
-        this.width = svg.attr("width");
-        this.height = svg.attr("height");
+        this.width = width;
+        this.height = height;
         this.normalize = normalize;
-        this.svg = svg;
-        this.arrows = this.svg.append("g").attr("class", "arrows");
+        this.group = group;
+        this.arrows = this.group.append("g").attr("class", "arrows");
         this.xlim = xlim;
         this.ylim = ylim;
-        this.gridShape = gridshape;
+        this.gridShape = gridShape;
 
         if (xlim !== null) {
             this.x = d3.scaleLinear().domain(xlim).range([0, this.width]).clamp(true);
@@ -31,7 +32,6 @@ class DynamicQuiverPlot {
         }
 
         const [gridSizeX, gridSizeY] = this.gridShape;
-        
 
         // map data array to object
         data = data.map(d => ({ x: d[0], y: d[1], u: d[2], v: d[3] }));
@@ -57,7 +57,7 @@ class DynamicQuiverPlot {
         if (this.ylim === null) {
             this.y = d3.scaleLinear().domain(yExtent).range([this.height, 0]).clamp(true);
         }
-        
+
         const arrowSelection = this.arrows.selectAll("line").data(data);
         const p1 = arrowSelection.enter().append("line")
             .attr("class", "arrow")
@@ -104,7 +104,9 @@ class DynamicQuiverPlot {
 
 class DynamicContourPlot {
     constructor({
-        svg, 
+        group, 
+        width, 
+        height,
         xlim = null, 
         ylim = null, 
         zlim = null, 
@@ -113,10 +115,10 @@ class DynamicContourPlot {
         showColorbar = true,
         } = {}
     ) {
-        this.width = svg.attr("width");
-        this.height = svg.attr("height");
-        this.svg = svg;
-        this.mainGroup = svg.append("g")
+        this.width = width;
+        this.height = height;
+        this.group = group;
+        this.mainGroup = group.append("g")
             .attr("class", "contour-group");
 
         if (colormap === null) {
@@ -132,7 +134,7 @@ class DynamicContourPlot {
         this.gridShape = gridShape;
         this.showColorbar = showColorbar;
 
-        this.colorbarGroup = svg.append("g")
+        this.colorbarGroup = group.append("g")
             .attr("class", "colorbar-group")
             .attr("transform", `translate(${this.width-50}, ${this.height*0.1}) scale(1, 0.8)`)
             .attr("visibility", "hidden");
@@ -145,12 +147,11 @@ class DynamicContourPlot {
             .size(this.gridShape)
             .smooth(true)(z);
 
-
         // Filter contours based on zlim
         if (this.zlim !== null) {
             contours = contours.filter(d => d.value >= this.zlim[0] && d.value <= this.zlim[1]);
         }
-        
+
         const height = this.height;
         const width = this.width;
         const scaleX = width / this.gridShape[1];
@@ -176,7 +177,6 @@ class DynamicContourPlot {
             .attr("stroke-linejoin", "round")
             .attr("stroke-linecap", "round")
             .transition().duration(0).end();
-
 
         paths.exit().remove();
         if (this.showColorbar) {
@@ -254,11 +254,11 @@ class DynamicContourPlot {
 
 // DynamicScatterPlot class
 class DynamicScatterPlot {
-    constructor(svg, color = "#69b3a2", xlim = null, ylim = null) {
-        this.width = svg.attr("width");
-        this.height = svg.attr("height");
-        this.svg = svg;
-        this.mainGroup = svg.append("g");
+    constructor({ group, width, height, color = "#69b3a2", xlim = null, ylim = null }) {
+        this.width = width;
+        this.height = height;
+        this.group = group;
+        this.mainGroup = group.append("g");
 
         this.xScale = d3.scaleLinear().range([0, this.width]);
         this.yScale = d3.scaleLinear().range([this.height, 0]);
@@ -287,7 +287,6 @@ class DynamicScatterPlot {
         }
         // Bind data to existing circles
         const circles = this.mainGroup.selectAll("circle").data(data);
-
 
         // Update existing circles
         const p1 = circles
@@ -326,7 +325,9 @@ class DynamicScatterPlot {
 // DynamicDecisionMap class
 class DynamicDecisionMap {
     constructor({
-        div, 
+        group, 
+        width = null, 
+        height = null,
         xlim = null, 
         ylim = null, 
         zlim = null, 
@@ -334,19 +335,13 @@ class DynamicDecisionMap {
         gridShape = [20, 20],
         showColorbar = true,
     }={}) {
-        // Find the svg if doesn't exist create one
-        this.svg = d3.select(div).select("svg");
-        if (this.svg.empty()) {
-            this.svg = d3.select(div).append("svg");
+        this.group = group;
 
-            // Infer width and height
-            const width = parseInt(this.svg.style("width"));
-            const height = parseInt(this.svg.style("height"));
-
-            // Set attributes
-            this.svg
-                .attr("width", width)
-                .attr("height", height);
+        if (width === null) {
+            width = group.node().getBoundingClientRect().width;
+        }
+        if (height === null) {
+            height = group.node().getBoundingClientRect().height;
         }
 
         this.xlim = xlim;
@@ -354,7 +349,9 @@ class DynamicDecisionMap {
         this.zlim = zlim;
 
         this.contourPlot = new DynamicContourPlot({
-            svg:this.svg, 
+            group: this.group, 
+            width, 
+            height, 
             xlim, 
             ylim, 
             zlim, 
@@ -362,9 +359,9 @@ class DynamicDecisionMap {
             gridShape,
             showColorbar
         });
-        this.quiverPlot = new DynamicQuiverPlot({svg:this.svg, normalize:"mean"});
-        this.realDataPlot = new DynamicScatterPlot(this.svg, "black", xlim, ylim);
-        this.fakeDataPlot = new DynamicScatterPlot(this.svg, "orange", xlim, ylim);
+        this.quiverPlot = new DynamicQuiverPlot({ group: this.group, width, height, normalize: "mean" });
+        this.realDataPlot = new DynamicScatterPlot({ group: this.group, width, height, color: "black", xlim, ylim });
+        this.fakeDataPlot = new DynamicScatterPlot({ group: this.group, width, height, color: "orange", xlim, ylim });
     }
 
     async update(data) {
@@ -373,7 +370,7 @@ class DynamicDecisionMap {
         const p1 = this.contourPlot.update(decisionMap);
         const p2 = this.quiverPlot.update(gradientMap);
         this.contourPlot.colorbarGroup.raise();
-        
+
         const p3 = this.realDataPlot.update(realData);
         const p4 = this.fakeDataPlot.update(fakeData);
 
@@ -392,10 +389,8 @@ class DynamicDecisionMap {
         const realData = d3.shuffle(modelHandler.inputData).slice(0, 200);
 
         const fakeData = modelHandler.generate(200);
-        // const decisionMap = gan.decisionMap();
-        // const gradientMap = gan.gradientMap();
-        const {decisionMap, gradientMap} = modelHandler.decisionAndGradientMap();
-        const data = { realData, fakeData, decisionMap, gradientMap};
+        const { decisionMap, gradientMap } = modelHandler.decisionAndGradientMap();
+        const data = { realData, fakeData, decisionMap, gradientMap };
 
         await this.update(data);
     }
@@ -403,13 +398,22 @@ class DynamicDecisionMap {
 
 class DynamicMultiDecisionMap {
     constructor({
-        div, 
+        group, 
+        width = null, 
+        height = null,
         xlim = null, 
         ylim = null, 
         zlim = null, 
         gridShape = [20, 20],
         numMaps = 3,
     }={}) {
+        if (width === null) {
+            width = group.node().getBoundingClientRect().width;
+        }
+        if (height === null) {
+            height = group.node().getBoundingClientRect().height;
+        }
+
         // Extract colors from the image and create gradients
         this.colormaps = [
             d3.interpolateRgb("#D0E5FA", "#B3CDE3"), // Light blue gradient
@@ -417,7 +421,7 @@ class DynamicMultiDecisionMap {
             d3.interpolateRgb("#FAE0D6", "#E1B09E")  // Light orange gradient
         ];
 
-        this.div = div;
+        this.group = group;
 
         this.xlim = xlim;
         this.ylim = ylim;
@@ -434,7 +438,9 @@ class DynamicMultiDecisionMap {
             const colormap = this.colormaps[i % this.colormaps.length];
             
             const ddm = new DynamicDecisionMap({
-                div,
+                group,
+                width,
+                height,
                 xlim,
                 ylim,
                 zlim,

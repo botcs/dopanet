@@ -1,20 +1,11 @@
-/* style.css */
 body {
     font-family: Arial, sans-serif;
     display: flex;
     flex-direction: column;
     align-items: center;
     margin: 0;
-    padding: 20px;
-}
-
-canvas {
-    border: 1px solid black;
-    margin-top: 10px;
-}
-
-div {
-    margin-bottom: 10px;
+    padding: 0;
+    height: 100vh;
 }
 
 svg {
@@ -22,35 +13,95 @@ svg {
     height: 100%;
 }
 
-#controlBox {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
-    margin-top: 10px;
+/* Diagram */
+.box {
+    fill: lightgray;
+    stroke: black;
+    stroke-width: 2px;
+    rx: 5;
 }
 
-#mainGANPlot {
+.text {
+    font-size: 20px;
+    text-anchor: middle;
+    pointer-events: none; /* Disable mouse */
+}
+
+path.diagram {
+    fill: none;
+    stroke: black;
+    stroke-width: 2px;
+}
+
+.box.inactive {
+    fill: lightgray !important;
+    stroke-dasharray: 5, 5; /* Make dashed */
+}
+
+.topSection, .bottomSection {
+    width: 60vw;
+}
+
+.topSection {
+    height: 50%;
     display: flex;
-    /* justify-content: center; */
-    align-items: center;
-    flex-direction: column;
+    padding-bottom: 1em;
+    justify-content: center;
+    border-bottom: 1px solid lightgray;
+}
+
+.bottomSection {
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    overflow-y: auto;
+}
+
+canvas {
+    border: 1px solid black;
+    width: 100%;
+    height: 100%;
+}
+
+.modelEntry {
+    padding-top: 1em;
+    padding-bottom: 4em;
+    border-bottom: 1px solid lightgray;
+}
+
+.wrapContainer {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-auto-rows: auto;
+    gap: 10px;
+    justify-items: center;
+}
+
+.wrappedItem {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.plot {
+    height: 45vh;
+    width: 100%;
     border: 1px solid black;
 }
 
-label {
-    margin-right: 10px;
-}
-
 button {
-    margin-top: 10px;
+    margin: 5px;
+    padding: 5px;
+    border: 1px solid black;
+    border-radius: 5px;
+    background-color: white;
+    cursor: pointer;
 }
 
 
 .axis path,
 .axis line {
     fill: none;
-    shape-rendering: crispEdges;
+    shape-rendering: optimizeSpeed;
 }
 .arrow {
     fill: none;
@@ -62,41 +113,22 @@ button {
     stroke: none;
 }
 
-/* Set canvas size for phones */
+
+/* Responsive Design */
 @media (max-width: 767px) {
-    canvas {
-        width: 90vw;
-        height: 50vh;
+    .topSection, .bottomSection {
+        width: 95vw;
     }
 
-    #mainGANPlot {
-        width: 90vw;
-        height: 50vh;
-    }
-}
-
-/* Set canvas size for tablets and laptops */
-@media (min-width: 768px) {
-    canvas {
-        width: 80vw;
-        height: 60vh;
+    .topSection {
+        height: unset;
     }
 
-    #mainGANPlot {
-        width: 80vw;
-        height: 60vh;
-    }
-}
-
-/* Set canvas size for desktops */
-@media (min-width: 1024px) {
-    canvas {
-        width: 50em;
-        height: 40em;
+    .wrapContainer {
+        grid-template-columns: 1fr;
     }
 
-    #mainGANPlot {
-        height: 40em;
-        width: 50em;
+    .bottomSection {
+        overflow-y: unset;
     }
 }
