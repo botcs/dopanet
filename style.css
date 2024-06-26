@@ -44,9 +44,10 @@ path.diagram {
 }
 
 .topSection {
-    /* height: 50%; */
+    height: 100%;
     display: flex;
     padding-bottom: 1em;
+    padding-top: 0.5em;
     justify-content: center;
     border-bottom: 1px solid lightgray;
 }

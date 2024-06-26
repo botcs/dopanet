@@ -4,6 +4,7 @@ function main(){
     const ctx = canvas.getContext('2d');
     const resetCanvasButton = document.getElementById('resetCanvasButton');
     const toggleVisorButton = document.getElementById('toggleVisorButton');
+    const toggleTopSectionButton = document.getElementById('toggleTopSectionButton');
 
     const inputData = [];
     const normalizedInputData = [];
@@ -152,14 +153,20 @@ function main(){
     });
 
 
+    function toggleTopSectionHover(){
+        // toggle the css of the .bottomSection to overflow-y: unset / auto
+        if (document.querySelector('.bottomSection').style['overflow-y'] === 'unset') {
+            document.querySelector('.bottomSection').style['overflow-y'] = 'auto';
+        } else {
+            document.querySelector('.bottomSection').style['overflow-y'] = 'unset';
+        }
+    }
+
+    toggleTopSectionButton.addEventListener('click', toggleTopSectionHover);
+    
     document.addEventListener('keydown', (event) => {
         if (event.key === 't') {
-            // toggle the css of the .bottomSection to overflow-y: unset / auto
-            if (document.querySelector('.bottomSection').style['overflow-y'] === 'unset') {
-                document.querySelector('.bottomSection').style['overflow-y'] = 'auto';
-            } else {
-                document.querySelector('.bottomSection').style['overflow-y'] = 'unset';
-            }
+            toggleTopSectionHover();
         }
     });
 
