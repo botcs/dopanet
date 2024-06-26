@@ -6,13 +6,13 @@ const InfoGAN = (function() {
             {
                 latentDim = 100,
                 codeDim = 3,
-                genLayers = 4,
-                genStartDim = 64,
+                genLayers = 0,
+                genStartDim = 512,
                 discLayers = 1,
-                discStartDim = 1024,
+                discStartDim = 512,
                 batchSize = 64,
                 qWeight = 1,
-                latentNorm = 1/2,
+                latentNorm = 1/4,
             } = {}
         ) {
             this.generator = null;
@@ -65,7 +65,9 @@ const InfoGAN = (function() {
 
             // const gEmbedding = tf.layers.add().apply([latentEmb, codeEmb]);
             const normLatent = new MultiplyLayer({ constant: this.latentNorm }).apply(latentEmb);
-            const gEmbedding = tf.layers.add().apply([normLatent, codeEmb]);
+            let gEmbedding = tf.layers.add().apply([normLatent, codeEmb]);
+            gEmbedding = tf.layers.activation({ activation: 'relu' }).apply(gEmbedding);
+
             
             // const backbone = tf.sequential();
             // backbone.add(tf.layers.dense({ units: startDim, inputShape: [startDim], activation: 'relu' }));
