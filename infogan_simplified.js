@@ -446,6 +446,9 @@ const InfoGAN = (function() {
         async trainToggle() {
             if (!this.isInitialized) await this.init();
             this.gan.trainToggle(this.inputData, this.callback);
+            
+            tfvis.visor().setActiveTab('InfoGAN');
+
             // change the button text
             if (this.gan.isTraining) {
                 this.trainToggleButton.text('Stop Training');
