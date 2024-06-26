@@ -225,7 +225,12 @@ const VanillaGAN = (function() {
             description.append('button')
                 .text('Reset')
                 .on('click', () => this.reset());
-            
+
+
+            const explanation = modelCard.append('div')
+                .classed('wrappedItem', true);
+            VanillaGANDiagram.constructExplanation(explanation);
+
             this.discriminatorPlot = modelCard.append('div')
                 .classed('wrappedItem', true)
                 .classed('plot', true)
@@ -247,6 +252,7 @@ const VanillaGAN = (function() {
                 ylim: [-1, 1],
                 zlim: [0, 1],
                 gridShape: this.gridshape,
+                showColorbar: true,
             });
 
             await this.gan.init();

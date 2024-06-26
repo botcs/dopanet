@@ -34,11 +34,18 @@ const InfoGAN = (function() {
             this.buildGenerator({
                 latentDim: this.latentDim, 
                 codeDim: this.codeDim, 
-                genLayers: this.genLayers, 
-                genStartDim: this.genStartDim
+                numLayers: this.genLayers, 
+                startDim: this.genStartDim
             });
-            this.buildDiscriminator(this.discLayers, this.discStartDim);
-            this.buildQNetwork(this.codeDim, this.discLayers, this.discStartDim);
+            this.buildDiscriminator({
+                numLayers: this.discLayers, 
+                startDim: this.discStartDim
+            });
+            this.buildQNetwork({
+                codeDim: this.codeDim, 
+                numLayers: this.discLayers, 
+                startDim: this.discStartDim
+            });
             this.buildCombinedModel();
             
             this.realSamplesBuff = tf.buffer([this.batchSize, 2]);
@@ -47,7 +54,9 @@ const InfoGAN = (function() {
             this.isTraining = false;
         }
     
-        buildGenerator({latentDim, codeDim, numLayers = 4, startDim = 128}) {
+        buildGenerator({latentDim, codeDim, numLayers, startDim}={}) {
+            console.log(`Building Generator with latentDim: ${latentDim}, codeDim: ${codeDim}, numLayers: ${numLayers}, startDim: ${startDim}`);
+
             this.gLatent = tf.input({ shape: [latentDim] });
             this.gCode = tf.input({ shape: [codeDim] });
             
@@ -58,20 +67,27 @@ const InfoGAN = (function() {
             const normLatent = new MultiplyLayer({ constant: this.latentNorm }).apply(latentEmb);
             const gEmbedding = tf.layers.add().apply([normLatent, codeEmb]);
             
-            const backbone = tf.sequential();
-            backbone.add(tf.layers.dense({ units: startDim, inputShape: [startDim], activation: 'relu' }));
-    
+            // const backbone = tf.sequential();
+            // backbone.add(tf.layers.dense({ units: startDim, inputShape: [startDim], activation: 'relu' }));
+            let gOutput = gEmbedding;
             for (let i = 1; i < numLayers; i++) {
-                backbone.add(tf.layers.dense({ units: startDim * Math.pow(2, i), activation: 'relu' }));
+                const inputShape = [startDim * Math.pow(2, i-1)];
+                const units = startDim * Math.pow(2, i);
+                const activation = "relu";
+                const layer = tf.layers.dense({ units, inputShape, activation });
+                console.log(`Layer ${i}: units: ${units}, inputShape: ${inputShape}, activation: ${activation}`)
+                gOutput = layer.apply(gOutput);
             }
     
-            backbone.add(tf.layers.dense({ units: 2, activation: 'linear' }));
-            const gOutput = backbone.apply(gEmbedding);
+            const finalLayer = tf.layers.dense({ units: 2, activation: 'linear' });
+            gOutput = finalLayer.apply(gOutput);
+            // backbone.add(tf.layers.dense({ units: 2, inputShape: [startDim * Math.pow(2, numLayers-1)], activation: 'linear' }));
+            // const gOutput = backbone.apply(gEmbedding);
 
             this.generator = tf.model({ inputs: [this.gLatent, this.gCode], outputs: gOutput });
         }
     
-        buildDiscriminator(numLayers = 4, startDim = 512) {
+        buildDiscriminator({numLayers, startDim}={}) {
             const dInput = tf.input({ shape: [2] });
             const discriminator = tf.sequential();
             discriminator.add(tf.layers.dense({ units: startDim, inputShape: [2], activation: 'relu' }));
@@ -90,7 +106,7 @@ const InfoGAN = (function() {
             });
         }
     
-        buildQNetwork(codeDim, numLayers = 4, startDim = 512) {
+        buildQNetwork({codeDim, numLayers, startDim}) {
             const qInput = tf.input({ shape: [2] });
             const qNetwork = tf.sequential();
             // qNetwork.add(tf.layers.dense({ units: 128, inputShape: [2], activation: 'relu' }));
@@ -195,7 +211,6 @@ const InfoGAN = (function() {
                     gCode,
                     fakeSamples,
                     dInputs,
-                    dLabelsCombined,
                 ])
                 if (callback) await callback(logValues);
                 iter++;
@@ -204,7 +219,7 @@ const InfoGAN = (function() {
             this.isTraining = false;
         }
 
-        
+
         dispose() {
             tf.dispose([this.generator, this.discriminator, this.qNetwork, this.combinedModel]);
         }

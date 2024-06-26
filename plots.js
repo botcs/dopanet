@@ -372,7 +372,7 @@ class DynamicDecisionMap {
             showColorbar
         });
         this.quiverPlot = new DynamicQuiverPlot({ group: this.group, width, height, normalize: "mean" });
-        this.realDataPlot = new DynamicScatterPlot({ group: this.group, width, height, color: "black", xlim, ylim });
+        this.realDataPlot = new DynamicScatterPlot({ group: this.group, width, height, color: "white", xlim, ylim });
         this.fakeDataPlot = new DynamicScatterPlot({ group: this.group, width, height, color: "orange", xlim, ylim });
     }
 
