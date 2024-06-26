@@ -1,74 +1,74 @@
-// InfoGAN.js
+// gan.js
 
-const InfoGAN = (function() {
-    class InfoGAN {
+const VanillaGAN = (function() {
+    // Function to reset the weights
+    async function resetWeights(model, initializerName = 'glorotNormal') {
+        for (let layer of model.layers) {
+            if (layer.getWeights().length > 0) {
+                // Get the shape of the weights
+                const originalWeights = layer.getWeights();
+                const resetWeights = originalWeights.map(weight => {
+                    const shape = weight.shape;
+                    return tf.initializers[initializerName]().apply(shape);
+                });
+
+                // Set the weights
+                layer.setWeights(resetWeights);
+            }
+        }
+    }
+    
+
+    class VanillaGAN {
         constructor(
             {
                 latentDim = 100,
-                codeDim = 3,
                 genLayers = 1,
                 genStartDim = 1024,
                 discLayers = 1,
                 discStartDim = 1024,
-                batchSize = 64,
-                qWeight = 1,
-                latentNorm = 1/2,
+                batchSize = 64
             } = {}
         ) {
             this.generator = null;
             this.discriminator = null;
-            this.qNetwork = null;
-            this.combinedModel = null;
+            this.gan = null;
             this.latentDim = latentDim;
-            this.codeDim = codeDim;
             this.genLayers = genLayers;
             this.genStartDim = genStartDim;
             this.discLayers = discLayers;
             this.discStartDim = discStartDim;
             this.batchSize = batchSize;
-            this.qWeight = qWeight;
-            this.latentNorm = latentNorm;
         }
-    
+
         async init() {
             this.buildGenerator({
                 latentDim: this.latentDim, 
-                codeDim: this.codeDim, 
                 genLayers: this.genLayers, 
                 genStartDim: this.genStartDim
             });
             this.buildDiscriminator(this.discLayers, this.discStartDim);
-            this.buildQNetwork(this.codeDim, this.discLayers, this.discStartDim);
             this.buildCombinedModel();
             
             this.realSamplesBuff = tf.buffer([this.batchSize, 2]);
-            this.codeSamplesBuff = tf.buffer([this.batchSize]);
             this.fakeSamplesBuff = tf.buffer([this.batchSize, 2]);
             this.isTraining = false;
         }
-    
-        buildGenerator({latentDim, codeDim, numLayers = 4, startDim = 128}) {
-            this.gLatent = tf.input({ shape: [latentDim] });
-            this.gCode = tf.input({ shape: [codeDim] });
-            
-            const latentEmb = tf.layers.dense({ units: startDim, activation: 'linear', useBias: false }).apply(this.gLatent);
-            const codeEmb = tf.layers.dense({ units: startDim, activation: 'linear', useBias: false }).apply(this.gCode);
 
-            // const gEmbedding = tf.layers.add().apply([latentEmb, codeEmb]);
-            const normLatent = new MultiplyLayer({ constant: this.latentNorm }).apply(latentEmb);
-            const gEmbedding = tf.layers.add().apply([normLatent, codeEmb]);
+        buildGenerator({latentDim, numLayers = 4, startDim = 128}) {
+            this.gLatent = tf.input({ shape: [latentDim] });
             
             const backbone = tf.sequential();
-            backbone.add(tf.layers.dense({ units: startDim, inputShape: [startDim], activation: 'relu' }));
+            backbone.add(tf.layers.dense({ units: startDim, inputShape: [latentDim], activation: 'relu' }));
     
             for (let i = 1; i < numLayers; i++) {
                 backbone.add(tf.layers.dense({ units: startDim * Math.pow(2, i), activation: 'relu' }));
             }
     
             backbone.add(tf.layers.dense({ units: 2, activation: 'linear' }));
-            const gOutput = backbone.apply(gEmbedding);
+            const gOutput = backbone.apply(this.gLatent);
 
-            this.generator = tf.model({ inputs: [this.gLatent, this.gCode], outputs: gOutput });
+            this.generator = tf.model({ inputs: this.gLatent, outputs: gOutput });
         }
     
         buildDiscriminator(numLayers = 4, startDim = 512) {
@@ -89,51 +89,45 @@ const InfoGAN = (function() {
                 loss: 'binaryCrossentropy' 
             });
         }
-    
-        buildQNetwork(codeDim, numLayers = 4, startDim = 512) {
-            const qInput = tf.input({ shape: [2] });
-            const qNetwork = tf.sequential();
-            // qNetwork.add(tf.layers.dense({ units: 128, inputShape: [2], activation: 'relu' }));
-            qNetwork.add(tf.layers.dense({ units: startDim, inputShape: [2], activation: 'relu' }));
-            for (let i = 1; i < numLayers; i++) {
-                qNetwork.add(tf.layers.dense({ units: startDim / Math.pow(2, i), activation: 'relu' }));
-            }
 
-            qNetwork.add(tf.layers.dense({ units: codeDim, activation: 'softmax' }));
-            const qOutput = qNetwork.apply(qInput);
-
-            this.qNetwork = tf.model({ inputs: qInput, outputs: qOutput });
-        }
 
         buildCombinedModel() {
             const gOutput = this.generator.outputs[0];
             const dOutput = this.discriminator.apply(gOutput);
-            const qOutput = this.qNetwork.apply(gOutput);
 
-            this.combinedModel = tf.model({ inputs: this.generator.inputs, outputs: [dOutput, qOutput] });
-            // const gLossFn = (yTrue, yPred) => tf.scalar(1).mul(tf.metrics.categoricalCrossentropy(yTrue, yPred));
+            this.combinedModel = tf.model({ inputs: this.generator.inputs, outputs: dOutput });
             const gLossFn = (yTrue, yPred) => tf.metrics.binaryCrossentropy(yTrue, yPred).mul(tf.scalar(1));
-            const qLossFn = (yTrue, yPred) => tf.metrics.categoricalCrossentropy(yTrue, yPred).mul(tf.scalar(this.qWeight));
             this.combinedModel.compile({ 
                 optimizer: tf.train.adam(0.0001, 0.5, 0.5), 
                 // optimizer: tf.train.momentum(0.001, 0.1),
-                loss: [gLossFn, qLossFn],
+                loss: gLossFn,
             });
         }
 
 
+
         readTrainingBuffer() {
             const realData = this.realSamplesBuff.toTensor();
-            const codeData = this.codeSamplesBuff.toTensor();
             const fakeData = this.fakeSamplesBuff.toTensor();
 
             const ret = {
                 realData: realData.arraySync(),
-                codeData: codeData.arraySync(),
                 fakeData: fakeData.arraySync(),
             }
-            tf.dispose([realData, codeData, fakeData]);
+            tf.dispose([realData, fakeData]);
             return ret;
+        }
+
+
+        async reset() {
+            // reset the weights and biases of the generator and discriminator
+            
+            // await together for both models
+            await Promise.all([
+                resetWeights(this.generator), 
+                resetWeights(this.discriminator)
+            ]);
+            
         }
 
         async trainToggle(data, callback = null) {
@@ -141,61 +135,50 @@ const InfoGAN = (function() {
                 this.isTraining = false;
                 return;
             }
-    
+
             this.isTraining = true;
             let iter = 0;
-    
+
             const realLabels = tf.ones([this.batchSize, 1]);
             const fakeLabels = tf.zeros([this.batchSize, 1]);
             const dLabels = tf.concat([realLabels, fakeLabels]);
 
-            while (this.isTraining) { 
+            while (this.isTraining) {
                 for (let i = 0; i < this.batchSize; i++) {
-                    const [x, y] = data[Math.floor(Math.random() * data.length)];
+                    const [x, y] = data[Math.floor(Math.random() * data.length)]
                     this.realSamplesBuff.set(x, i, 0);
                     this.realSamplesBuff.set(y, i, 1);
                 }
                 const realSamples = this.realSamplesBuff.toTensor();
                 const gLatent = tf.randomNormal([this.batchSize, this.latentDim]);
-                const idxs = randInt(0, this.codeDim-1, this.batchSize);
-                const gCode = tf.oneHot(idxs, this.codeDim);
-
-                const fakeSamples = this.generator.predict([gLatent, gCode]);
-                const fakeSamplesVal = fakeSamples.arraySync();
+                const fakeSamples = this.generator.predict(gLatent);
 
                 // Store values in the buffer for plotting later
+                const fakeSamplesVal = fakeSamples.arraySync();
                 for (let i = 0; i < this.batchSize; i++) {
-                    this.codeSamplesBuff.set(idxs[i], i);
                     this.fakeSamplesBuff.set(fakeSamplesVal[i][0], i, 0);
                     this.fakeSamplesBuff.set(fakeSamplesVal[i][1], i, 1);
                 }
 
                 const dInputs = tf.concat([realSamples, fakeSamples]);
-
-                const logValues = { iter, gLoss: 0, dLoss: 0, qLoss: 0 };
+                const logValues = { iter, gLoss: 0, dLoss: 0};
 
                 // Train Discriminator
                 this.discriminator.trainable = true;
                 this.generator.trainable = false;
-                this.qNetwork.trainable = false;
                 const dLoss = await this.discriminator.trainOnBatch(dInputs, dLabels);
                 logValues.dLoss = dLoss;
 
                 // Train Generator and Q Network
                 this.discriminator.trainable = false;
                 this.generator.trainable = true;
-                this.qNetwork.trainable = false;
-                const gqLoss = await this.combinedModel.trainOnBatch([gLatent, gCode], [realLabels, gCode]);
-                logValues.gLoss = gqLoss[1];
-                logValues.qLoss = gqLoss[2];
-
+                logValues.gLoss = await this.combinedModel.trainOnBatch(gLatent, realLabels);
+                 
                 tf.dispose([
                     realSamples, 
                     gLatent,
-                    gCode,
                     fakeSamples,
                     dInputs,
-                    dLabelsCombined,
                 ])
                 if (callback) await callback(logValues);
                 iter++;
@@ -204,22 +187,21 @@ const InfoGAN = (function() {
             this.isTraining = false;
         }
 
-        
         dispose() {
-            tf.dispose([this.generator, this.discriminator, this.qNetwork, this.combinedModel]);
+            tf.dispose([this.generator, this.discriminator, this.gan]);
         }
     }
-    
+
     class ModelHandler {
         constructor(inputData) {
             this.inputData = inputData;
-            this.gan = new InfoGAN();
+            this.gan = new VanillaGAN();
             this.isInitialized = false;
-            
+
             // Build the DOM entry
             this.modelEntry = d3.select('#modelEntryContainer').append('div')
                 .attr('class', 'modelEntry')
-                .attr('id', 'InfoGAN');
+                .attr('id', 'VanillaGAN');
 
             this.modelEntry
             const modelCard = this.modelEntry.append('div')
@@ -228,13 +210,13 @@ const InfoGAN = (function() {
             const description = modelCard.append('div')
                 .classed('wrappedItem', true);
             
-            InfoGANDiagram.constructDescription(description);
+            VanillaGANDiagram.constructDescription(description);
                 
             const diagram = modelCard.append('div')
                 .attr('id', 'InfoGANDiagram')
                 .classed('wrappedItem', true);
 
-            InfoGANDiagram.constructDiagram(diagram); 
+            VanillaGANDiagram.constructDiagram(diagram); 
                 
             this.trainToggleButton = description.append('button')
                 .text('Train')
@@ -243,22 +225,12 @@ const InfoGAN = (function() {
             description.append('button')
                 .text('Reset')
                 .on('click', () => this.reset());
-
-            // make the plots appear side by side
-            this.QNetworkPlot = modelCard.append('div')
-                .classed('wrappedItem', true)
-                .classed('plot', true)
-                .append('svg');
-
             
             this.discriminatorPlot = modelCard.append('div')
                 .classed('wrappedItem', true)
                 .classed('plot', true)
                 .append('svg');
-
-            
         }
-
         async init() {
             // change the button text
             this.trainToggleButton.text('Initializing...');
@@ -268,15 +240,6 @@ const InfoGAN = (function() {
             const grid = tf.meshgrid(x, y);
             this.decisionMapInputBuff = tf.stack([grid[0].flatten(), grid[1].flatten()], 1);
             tf.dispose([x, y, grid]);
-
-            this.QNetworkPlot = new DynamicMultiDecisionMap({
-                group: this.QNetworkPlot,
-                xlim: [-1, 1],
-                ylim: [-1, 1],
-                zlim: [0, 1],
-                numMaps: 3,
-                gridShape: this.gridshape,
-            });
 
             this.discriminatorPlot = new DynamicDecisionMap({
                 group: this.discriminatorPlot,
@@ -288,54 +251,37 @@ const InfoGAN = (function() {
 
             await this.gan.init();
 
-            this.fpsCounter = new FPSCounter("InfoGAN FPS");
+            this.fpsCounter = new FPSCounter("Vanilla GAN FPS");
             this.gLossVisor = new VisLogger({
                 name: 'Generator Loss',
-                tab: 'InfoGAN',
+                tab: 'Vanilla GAN',
                 xLabel: 'Iteration',
                 yLabel: 'Loss',
             });
             this.dLossVisor = new VisLogger({
                 name: 'Discriminator Loss',
-                tab: 'InfoGAN',
-                xLabel: 'Iteration',
-                yLabel: 'Loss',
-            });
-            this.qLossVisor = new VisLogger({
-                name: 'Q Network Loss',
-                tab: 'InfoGAN',
+                tab: 'Vanilla GAN',
                 xLabel: 'Iteration',
                 yLabel: 'Loss',
             });
             
 
-            this.callback = async ({iter, gLoss, dLoss, qLoss}) => {
+            this.callback = async ({iter, gLoss, dLoss}) => {
                 this.gLossVisor.push({ x: iter, y: gLoss });
                 this.dLossVisor.push({ x: iter, y: dLoss });
-                this.qLossVisor.push({ x: iter, y: qLoss });
                 
                 // const realData = d3.shuffle(this.inputData).slice(0, 20);
                 // const fakeData = this.generate(20);
                 // Use the realDataBuff and fakeDataBuff to read data from
                 
-                const {realData, codeData, fakeData} = this.gan.readTrainingBuffer();
+                const {realData, fakeData} = this.gan.readTrainingBuffer();
                 const {decisionMap: ddm, gradientMap: dgm} = this.DiscriminatorDAGMap();
                 this.discriminatorPlot.update({
                     realData,
-                    codeData,
                     fakeData,
                     decisionMap: ddm,
                     gradientMap: dgm
                 })
-
-                const {decisionMaps: qdm, gradientMap: qgm} = this.QDAGMaps();
-                this.QNetworkPlot.update({
-                    realData, 
-                    codeData, 
-                    fakeData,
-                    decisionMaps: qdm, 
-                    gradientMap: qgm
-                });
 
                 this.fpsCounter.update();
             }
@@ -343,9 +289,10 @@ const InfoGAN = (function() {
             this.isInitialized = true;
         }
 
-        generate(nSamples) {
-            return this.gan.generate(nSamples);
+        generate(nSamples) { 
+            return this.gan.generate(nSamples) 
         }
+
 
         // DAG = Decision and Gradient
         DiscriminatorDAGMap() {
@@ -365,42 +312,6 @@ const InfoGAN = (function() {
             return ret;
         }
 
-        QDAGMaps() {
-            const points = this.decisionMapInputBuff;
-            const preds = this.gan.qNetwork.predict(points);
-            const predsT = preds.transpose();
-
-            // Only return the highest probability's gradient
-            const grad = tf.grad((point) => {
-                return this.gan.qNetwork.predict(point).max(1);
-            })(points);
-
-            const xyuv = tf.concat([points, grad], 1);
-
-            // To generate the gradients for each output:
-            // const preds = [];
-            // const xyuvs = [];
-            // for (let i = 0; i < this.gan.codeDim; i++) {
-            //     const {value: pred, grad} = tf.valueAndGrad((point) => {
-            //         return this.gan.qNetwork.predict(point).max({ axis: 1});
-            //     })(points);
-
-            //     preds.push(pred.arraySync());
-
-            //     const xyuv = tf.concat([points, grad], 1);
-            //     xyuvs.push(xyuv.arraySync());
-
-            //     tf.dispose([pred, grad, xyuv]);
-            // }
-
-            const ret = {
-                decisionMaps: predsT.arraySync(),
-                gradientMap: xyuv.arraySync()
-            };
-            tf.dispose([preds, predsT, grad, xyuv]);
-            return ret;
-        }
-
         async trainToggle() {
             if (!this.isInitialized) await this.init();
             this.gan.trainToggle(this.inputData, this.callback);
@@ -412,13 +323,15 @@ const InfoGAN = (function() {
             }
         }
 
+        async stopTraining() {
+            this.gan.isTraining = false;
+        }
+
         async reset() {
-            this.gan.resetParams();
+            this.gan.reset();
             this.gLossVisor.clear();
             this.dLossVisor.clear();
-            this.qLossVisor.clear();
         }
     }
-
     return { ModelHandler };
 })();
