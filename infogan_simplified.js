@@ -6,8 +6,8 @@ const InfoGAN = (function() {
             {
                 latentDim = 100,
                 codeDim = 3,
-                genLayers = 1,
-                genStartDim = 1024,
+                genLayers = 4,
+                genStartDim = 256,
                 discLayers = 1,
                 discStartDim = 1024,
                 batchSize = 64,
