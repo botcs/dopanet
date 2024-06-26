@@ -1,4 +1,4 @@
-// InfoGAN.js
+// MADGAN.js
 
 const MADGAN = (function() {
     // Function to reset the weights
@@ -282,11 +282,11 @@ const MADGAN = (function() {
 
             await this.gan.init();
 
-            this.fpsCounter = new FPSCounter("InfoGAN FPS");
+            this.fpsCounter = new FPSCounter("MADGAN FPS");
             
             this.dLossVisor = new VisLogger({
                 name: 'Discriminator Loss',
-                tab: 'InfoGAN',
+                tab: 'MADGAN',
                 xLabel: 'Iteration',
                 yLabel: 'Loss',
             });
@@ -294,7 +294,7 @@ const MADGAN = (function() {
 
             this.gLossAvgVisor = new VisLogger({
                 name: 'Average Generator Loss',
-                tab: 'InfoGAN',
+                tab: 'MADGAN',
                 xLabel: 'Iteration',
                 yLabel: 'Loss',
             });
@@ -303,7 +303,7 @@ const MADGAN = (function() {
             for (let i = 0; i < this.gan.codeDim; i++) {
                 this.gLossVisors.push(new VisLogger({
                     name: `Generator ${i} Loss`,
-                    tab: 'InfoGAN',
+                    tab: 'MADGAN',
                     xLabel: 'Iteration',
                     yLabel: 'Loss',
                 }));

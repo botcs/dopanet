@@ -10,7 +10,7 @@ const MADGANDiagram = (function() {
             flowDescription: "Each Generator (G1, G2, ..., Gk) receives input from a random noise vector, producing synthetic data samples (X_fake). The Discriminator (D) distinguishes between real (X_real) and fake (X_fake) data and identifies the source generator of each fake sample. This setup aids the generators in improving the quality and diversity of generated samples, ensuring that each generator produces distinct data types."
         };
 
-        // Append the InfoGAN content to the container using D3.js
+        // Append the MADGAN content to the container using D3.js
         const container = div;
 
         container.append("h1").text(data.title);
