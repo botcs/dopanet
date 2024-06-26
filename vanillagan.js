@@ -22,12 +22,12 @@ const VanillaGAN = (function() {
     class VanillaGAN {
         constructor(
             {
-                latentDim = 100,
+                latentDim = 10,
                 genLayers = 1,
-                genStartDim = 1024,
+                genStartDim = 512,
                 discLayers = 1,
-                discStartDim = 1024,
-                batchSize = 64
+                discStartDim = 512,
+                batchSize = 32
             } = {}
         ) {
             this.generator = null;
