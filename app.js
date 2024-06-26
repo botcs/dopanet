@@ -12,8 +12,7 @@ function main(){
     const normalizedInputData = [];
 
     modelHandlers = {
-        // 'vanilla': new VanillaGAN.ModelHandler(normalizedInputData),
-        'infogan': new InfoGAN.ModelHandler(normalizedInputData),
+        'vanilla': new VanillaGAN.ModelHandler(normalizedInputData),
         'infogan': new InfoGAN.ModelHandler(normalizedInputData),
     };
 

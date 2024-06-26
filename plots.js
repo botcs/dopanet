@@ -254,7 +254,7 @@ class DynamicContourPlot {
 
 // DynamicScatterPlot class
 class DynamicScatterPlot {
-    constructor({ group, width, height, color = "#69b3a2", xlim = null, ylim = null }) {
+    constructor({ group, width, height, color, xlim = null, ylim = null }) {
         this.width = width;
         this.height = height;
         this.group = group;
@@ -268,10 +268,13 @@ class DynamicScatterPlot {
         this.ylim = ylim;
     }
 
-    async update(data) {
+    async update({data, colors=null}) {
         if (data.length === 0) {
             this.mainGroup.selectAll("*").remove();
             return;
+        }
+        if (colors == null) {
+            colors = Array(data.length).fill(this.color);
         }
 
         // handle xlim and ylim
@@ -291,23 +294,23 @@ class DynamicScatterPlot {
         // Update existing circles
         const p1 = circles
             .attr("cx", d => this.xScale(d[0]))
-            .attr("cy", d => this.yScale(d[1]))
-            .attr("r", 3)
-            .attr("fill", this.color)
-            .attr("stroke", "#000")
-            .attr("stroke-width", 1)
-            .attr("opacity", 0.7)
-            .transition().duration(0).end();
+            .attr("cy", d => this.yScale(d[1]));
+            // .attr("r", 3)
+            // .attr("fill", d => colors[d.index])
+            // .attr("stroke", "#000")
+            // .attr("stroke-width", 1)
+            // .attr("opacity", 0.7)
+            // .transition().duration(0).end();
 
         // Enter new circles
         const p2 = circles.enter()
             .append("circle")
             .attr("cx", d => this.xScale(d[0]))
             .attr("cy", d => this.yScale(d[1]))
-            .attr("r", 3)
-            .attr("fill", this.color)
+            .attr("fill", (d, i) => colors[i])
+            .attr("r", 4)
             .attr("stroke", "#000")
-            .attr("stroke-width", 1)
+            .attr("stroke-width", 1.5)
             .attr("opacity", 0.7)
             .transition().duration(0).end();
 
@@ -332,10 +335,19 @@ class DynamicDecisionMap {
         ylim = null, 
         zlim = null, 
         colormap = null,
-        gridShape = [20, 20],
+        gridShape = [15, 15],
         showColorbar = true,
     }={}) {
         this.group = group;
+
+        this.codecolors = [
+            // "#B3CDE3", // blue
+            // "#A9CFA9", // green
+            // "#E1B09E"  // orange
+            "blue",
+            "green",
+            "#fe6730"
+        ];
 
         if (width === null) {
             width = group.node().getBoundingClientRect().width;
@@ -364,15 +376,20 @@ class DynamicDecisionMap {
         this.fakeDataPlot = new DynamicScatterPlot({ group: this.group, width, height, color: "orange", xlim, ylim });
     }
 
-    async update(data) {
-        const { realData, fakeData, decisionMap, gradientMap } = data;
+    async update({ realData, fakeData, decisionMap, gradientMap, codeData=null }={}) {
+
+        let colors = null;
+        if (codeData !== null) {
+            // Update the color of the decision maps based on the code
+            colors = codeData.map(d => this.codecolors[d]);
+        }
 
         const p1 = this.contourPlot.update(decisionMap);
         const p2 = this.quiverPlot.update(gradientMap);
         this.contourPlot.colorbarGroup.raise();
 
-        const p3 = this.realDataPlot.update(realData);
-        const p4 = this.fakeDataPlot.update(fakeData);
+        const p3 = this.realDataPlot.update({data: realData});
+        const p4 = this.fakeDataPlot.update({data: fakeData, colors});
 
         await Promise.all([p1, p2, p3, p4]);
     }
@@ -404,7 +421,7 @@ class DynamicMultiDecisionMap {
         xlim = null, 
         ylim = null, 
         zlim = null, 
-        gridShape = [20, 20],
+        gridShape = [15, 15],
         numMaps = 3,
     }={}) {
         if (width === null) {
@@ -454,7 +471,7 @@ class DynamicMultiDecisionMap {
     }
 
     async update(data) {
-        const { decisionMaps, gradientMap, realData, fakeData } = data;
+        const { decisionMaps, gradientMap, realData, fakeData, codeData = null } = data;
 
         // Update only the necessary number of maps
         for (let i = 0; i < this.numMaps; i++) {
@@ -464,7 +481,8 @@ class DynamicMultiDecisionMap {
                     decisionMap,
                     gradientMap,
                     realData,
-                    fakeData
+                    codeData,
+                    fakeData,
                 });
             } else {
                 // Avoid updating the real and fake data for the rest of the maps
@@ -472,7 +490,8 @@ class DynamicMultiDecisionMap {
                     decisionMap,
                     gradientMap: [],
                     realData: [],
-                    fakeData: []
+                    codeData: [],
+                    fakeData: [],
                 });
             }
         }

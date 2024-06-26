@@ -42,6 +42,7 @@ const InfoGAN = (function() {
             this.buildCombinedModel();
             
             this.realSamplesBuff = tf.buffer([this.batchSize, 2]);
+            this.codeSamplesBuff = tf.buffer([this.batchSize]);
             this.fakeSamplesBuff = tf.buffer([this.batchSize, 2]);
             this.isTraining = false;
         }
@@ -123,13 +124,15 @@ const InfoGAN = (function() {
 
         readTrainingBuffer() {
             const realData = this.realSamplesBuff.toTensor();
+            const codeData = this.codeSamplesBuff.toTensor();
             const fakeData = this.fakeSamplesBuff.toTensor();
 
             const ret = {
                 realData: realData.arraySync(),
+                codeData: codeData.arraySync(),
                 fakeData: fakeData.arraySync(),
             }
-            tf.dispose([realData, fakeData]);
+            tf.dispose([realData, codeData, fakeData]);
             return ret;
         }
 
@@ -154,13 +157,15 @@ const InfoGAN = (function() {
                 }
                 const realSamples = this.realSamplesBuff.toTensor();
                 const gLatent = tf.randomNormal([this.batchSize, this.latentDim]);
-                const idxs = randInt(0, this.codeDim, this.batchSize);
+                const idxs = randInt(0, this.codeDim-1, this.batchSize);
                 const gCode = tf.oneHot(idxs, this.codeDim);
 
                 const fakeSamples = this.generator.predict([gLatent, gCode]);
                 const fakeSamplesVal = fakeSamples.arraySync();
-                // load it to the FakeSamples buffer
+
+                // Store values in the buffer for plotting later
                 for (let i = 0; i < this.batchSize; i++) {
+                    this.codeSamplesBuff.set(idxs[i], i);
                     this.fakeSamplesBuff.set(fakeSamplesVal[i][0], i, 0);
                     this.fakeSamplesBuff.set(fakeSamplesVal[i][1], i, 1);
                 }
@@ -236,10 +241,7 @@ const InfoGAN = (function() {
             const description = modelCard.append('div')
                 .classed('wrappedItem', true);
             
-            description.append('h3').text('InfoGAN')
-            description.append('p')
-                .text('InfoGAN is a GAN that incorporates a Q network to learn latent codes.Q network to learn latent codes.Q network to learn latent codes.Q network to learn latent codes.Q network to learn latent codes.Q network to learn latent codes.Q network to learn latent codes.')
-                
+            InfoGANDiagram.constructDescription(description);
                 
             const diagram = modelCard.append('div')
                 .attr('id', 'InfoGANDiagram')
@@ -248,9 +250,6 @@ const InfoGAN = (function() {
             InfoGANDiagram.constructDiagram(diagram);
 
             
-            // modelEntry.append('p').text('InfoGAN is a GAN that incorporates a Q network to learn latent codes.');
-            // const controlBox = modelCard.append('div')
-            //     .classed('wrapContainer', true);
                 
             this.trainToggleButton = description.append('button')
                 .text('Train')
@@ -265,13 +264,15 @@ const InfoGAN = (function() {
             // make the plots appear side by side
 
 
-            this.discriminatorPlot = modelCard.append('div')
+
+            this.QNetworkPlot = modelCard.append('div')
                 // .attr('class', 'GANPlot')
                 .classed('wrappedItem', true)
                 .classed('plot', true)
                 .append('svg');
 
-            this.QNetworkPlot = modelCard.append('div')
+            
+            this.discriminatorPlot = modelCard.append('div')
                 // .attr('class', 'GANPlot')
                 .classed('wrappedItem', true)
                 .classed('plot', true)
@@ -284,12 +285,21 @@ const InfoGAN = (function() {
             // change the button text
             this.trainToggleButton.text('Initializing...');
 
+
+            this.gridshape = [15, 15];
+            const x = tf.linspace(-1, 1, this.gridshape[0]);
+            const y = tf.linspace(-1, 1, this.gridshape[1]);
+            const grid = tf.meshgrid(x, y);
+            this.decisionMapInputBuff = tf.stack([grid[0].flatten(), grid[1].flatten()], 1);
+            tf.dispose([x, y, grid]);
+
             this.QNetworkPlot = new DynamicMultiDecisionMap({
                 group: this.QNetworkPlot,
                 xlim: [-1, 1],
                 ylim: [-1, 1],
                 zlim: [0, 1],
                 numMaps: 3,
+                gridShape: this.gridshape,
             });
 
             this.discriminatorPlot = new DynamicDecisionMap({
@@ -297,9 +307,12 @@ const InfoGAN = (function() {
                 xlim: [-1, 1],
                 ylim: [-1, 1],
                 zlim: [0, 1],
+                gridShape: this.gridshape,
             });
 
             await this.gan.init();
+
+            
             
             this.callback = async ({iter, gLoss, dLoss, qLoss}) => {
                 this.gLossVisor.push({ x: iter, y: gLoss });
@@ -310,11 +323,12 @@ const InfoGAN = (function() {
                 // const fakeData = this.generate(20);
                 // Use the realDataBuff and fakeDataBuff to read data from
                 
-                const {realData, fakeData} = this.gan.readTrainingBuffer();
-
+                const {realData, codeData, fakeData} = this.gan.readTrainingBuffer();
+                console.log(codeData);
                 const {decisionMap: ddm, gradientMap: dgm} = this.DiscriminatorDAGMap();
                 this.discriminatorPlot.update({
                     realData,
+                    codeData,
                     fakeData,
                     decisionMap: ddm,
                     gradientMap: dgm
@@ -323,7 +337,8 @@ const InfoGAN = (function() {
                 const {decisionMaps: qdm, gradientMap: qgm} = this.QDAGMaps();
                 this.QNetworkPlot.update({
                     realData, 
-                    fakeData, 
+                    codeData, 
+                    fakeData,
                     decisionMaps: qdm, 
                     gradientMap: qgm
                 });
@@ -331,12 +346,6 @@ const InfoGAN = (function() {
                 this.fpsCounter.update();
             }
 
-            this.ddmGridSize = 20;
-            const x = tf.linspace(-1, 1, this.ddmGridSize);
-            const y = tf.linspace(-1, 1, this.ddmGridSize);
-            const grid = tf.meshgrid(x, y);
-            this.decisionMapInputBuff = tf.stack([grid[0].flatten(), grid[1].flatten()], 1);
-            tf.dispose([x, y, grid]);
 
             this.fpsCounter = new FPSCounter("InfoGAN FPS");
             this.gLossVisor = new VisLogger({

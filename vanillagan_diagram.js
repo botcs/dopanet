@@ -1,31 +1,30 @@
-const InfoGANDiagram = (function() {
+const VanillaGANDiagram = (function() {
     function constructDescription(div) {
-        const infoganData = {
-            title: "InfoGAN",
-            description: "InfoGAN is an advanced Generative Adversarial Network (GAN) that extends the standard GAN architecture by incorporating a Q network to learn interpretable latent codes. The architecture of InfoGAN consists of three main components:",
+        const descriptionData = {
+            title: "Vanill GAN",
+            description: "The V",
             components: [
-                "Generator (G): This network generates fake data samples (X fake) from a random noise vector combined with latent codes.",
+                "Generator (G): This network generates fake data samples (X fake) from a random noise vector.",
                 "Discriminator (D): This network differentiates between real data (X real) and fake data (X fake) produced by the Generator.",
-                "Classifier (Q): This specialized network learns to predict latent codes (C1', C2', C3') from the generated data (X fake), ensuring that the latent variables capture meaningful and interpretable features."
             ],
-            flowDescription: "The Generator (G) receives input from latent codes (C1, C2, C3) along with random noise, producing synthetic data samples (X fake). The Discriminator (D) distinguishes between real (X real) and fake (X fake) data, aiding the Generator in improving the quality of generated samples. The Classifier (Q) takes the fake data (X fake) and outputs the predicted latent codes (C1', C2', C3'), helping to enforce the mutual information between the latent codes and the generated data.",
+            flowDescription: "The Generator (G) receives random noise, producing synthetic data samples (X fake). The Discriminator (D) distinguishes between real (X real) and fake (X fake) data, aiding the Generator in improving the quality of generated samples.",
             
         };
 
         // Append the InfoGAN content to the container using D3.js
         const container = div;
 
-        container.append("h1").text(infoganData.title);
+        container.append("h1").text(descriptionData.title);
 
-        container.append("p").text(infoganData.description);
+        container.append("p").text(descriptionData.description);
 
         const ol = container.append("ol");
-        infoganData.components.forEach(component => {
+        descriptionData.components.forEach(component => {
             ol.append("li").html(`<strong>${component.split(':')[0]}</strong>: ${component.split(':')[1]}`);
         });
 
         container.append("h2").text("Information Flow");
-        container.append("p").text(infoganData.flowDescription);
+        container.append("p").text(descriptionData.flowDescription);
     }
 
     function constructDiagram(div) {
