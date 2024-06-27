@@ -99,6 +99,7 @@ const DoPaNetDiagram = (function() {
             { source: "Classifier", target: "D2" },
             { source: "Classifier", target: "D3" },
             { source: "X_fake", target: "Classifier" },
+            { source: "X_fake", target: "Discriminator" },
             { source: "Generator", target: "X_fake" },
             { source: "Discriminator", target: "X_fake" },
             { source: "Discriminator", target: "X_real" },

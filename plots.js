@@ -289,22 +289,8 @@ class DynamicScatterPlot {
             this.yScale.domain(d3.extent(data, d => d[1]));
         }
         // Bind data to existing circles
-        const circles = this.mainGroup.selectAll("circle").data(data);
-
-        // Update existing circles
-        const p1 = circles
-            .attr("cx", d => this.xScale(d[0]))
-            .attr("cy", d => this.yScale(d[1]))
-            .transition().duration(0).end();
-            // .attr("r", 3)
-            // .attr("fill", d => colors[d.index])
-            // .attr("stroke", "#000")
-            // .attr("stroke-width", 1)
-            // .attr("opacity", 0.7)
-
-        // Enter new circles
-        const p2 = circles.enter()
-            .append("circle")
+        const circles = this.mainGroup.selectAll("circle").data(data)
+            .join("circle")
             .attr("cx", d => this.xScale(d[0]))
             .attr("cy", d => this.yScale(d[1]))
             .attr("fill", (d, i) => colors[i])
@@ -313,11 +299,34 @@ class DynamicScatterPlot {
             .attr("stroke-width", 1.5)
             .attr("opacity", 0.7)
             .transition().duration(0).end();
+        // Update existing circles
+        // const p1 = circles
+        //     .attr("cx", d => this.xScale(d[0]))
+        //     .attr("cy", d => this.yScale(d[1]))
+        //     .attr("fill", (d, i) => colors[i])
+        //     .transition().duration(0).end();
+            // .attr("r", 3)
+            // .attr("fill", d => colors[d.index])
+            // .attr("stroke", "#000")
+            // .attr("stroke-width", 1)
+            // .attr("opacity", 0.7)
+
+        // Enter new circles
+        // const p2 = circles.enter()
+        //     .append("circle")
+            // .attr("cx", d => this.xScale(d[0]))
+            // .attr("cy", d => this.yScale(d[1]))
+            // .attr("fill", (d, i) => colors[i])
+            // .attr("r", 4)
+            // .attr("stroke", "#000")
+            // .attr("stroke-width", 1.5)
+            // .attr("opacity", 0.7)
+            // .transition().duration(0).end();
 
         // Remove circles that are no longer needed
-        const p3 = circles.exit().remove().transition().duration(0).end();
+        // const p3 = circles.exit().remove().transition().duration(0).end();
 
-        await Promise.all([p1, p2, p3]);
+        // await Promise.all([p1, p2, p3]);
     }
 
     bringToFront() {
