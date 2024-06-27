@@ -240,6 +240,7 @@ const DoPaNet = (function() {
                     // gather the real samples for the corresponding discriminator
                     const mask = tf.equal(qRealPredArgmax, i);
                     const dInput = await tf.booleanMaskAsync(realSamples, mask);
+                    // CSABI: START FROM HERE TOMORROW
                     const discriminator = this.discriminators[i];
                     const promise = discriminator.trainOnBatch(dInput, dLabels);
                     dTrainingPromises.push(promise);
