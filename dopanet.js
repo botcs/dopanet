@@ -23,15 +23,14 @@ const DoPaNet = (function() {
                 latentDim = 10,
                 codeDim = 3,
                 genLayers = 1,
-                genStartDim = 128,
+                genStartDim = 32,
                 discLayers = 1,
-                discStartDim = 128,
+                discStartDim = 32,
                 batchSize = 16,
-                qWeight = 1,
+                qWeight = 0.1,
                 latentNorm = 1/4,
                 gLR = 0.0001,
-                dLR = 0.0001,
-                qLR = 0.0001
+                dLR = 0.0005,
             } = {}
         ) {
             this.generator = null;
@@ -49,7 +48,6 @@ const DoPaNet = (function() {
             this.latentNorm = latentNorm;
             this.gLR = gLR;
             this.dLR = dLR;
-            this.qLR = qLR;
 
         }
     
@@ -71,9 +69,6 @@ const DoPaNet = (function() {
             });
             this.buildCombinedModels();
             
-            this.realSamplesBuff = tf.buffer([this.batchSize, 2]);
-            this.codeSamplesBuff = tf.buffer([this.batchSize*this.codeDim]);
-            this.fakeSamplesBuff = tf.buffer([this.batchSize*this.codeDim, 2]);
             this.isTraining = false;
         }
     
@@ -145,49 +140,26 @@ const DoPaNet = (function() {
                     inputs: gInput,
                     outputs: [dOutput, qOutput]
                 });
-                // const gLossFn = (yTrue, yPred) => tf.metrics.binaryCrossentropy(yTrue, yPred);
-                // const qLossFn = (yTrue, yPred) => tf.metrics.sparseCategoricalCrossentropy(yTrue, yPred);
+
+
+                const gLossFn = (yTrue, yPred) => tf.metrics.binaryCrossentropy(yTrue, yPred);
+                const qLossFn = (yTrue, yPred) => tf.metrics.categoricalCrossentropy(yTrue, yPred).mul(tf.scalar(this.qWeight));
 
                 combinedModel.compile({
                     optimizer: tf.train.adam(this.gLR),
-                    // loss: [gLossFn, qLossFn],
-                    loss: [
-                        'binaryCrossentropy', 
-                        'sparseCategoricalCrossentropy'
-                    ],
-                    lossWeights: [1, this.qWeight]
+                    loss: [gLossFn, qLossFn],
                 });
                 this.combinedModels.push(combinedModel);
             }
         }
 
-        readTrainingBuffer() {
-            const realData = this.realSamplesBuff.toTensor();
-            const fakeData = this.fakeSamplesBuff.toTensor();
-            const codeData = [];
-            for (let i = 0; i < this.codeDim; i++) {
-                codeData.push(Array(this.batchSize).fill(i));
-            }
-
-
-
-            const ret = {
-                realData: realData.arraySync(),
-                codeData: codeData.flat(),
-                fakeData: fakeData.arraySync(),
-            }
-            tf.dispose([realData, fakeData]);
-            return ret;
-        }
-
         async reset() {
             // reset the weights and biases of the generator and discriminator
             
-            // await together for both models
-            await Promise.all([
-                resetWeights(this.generator), 
-                resetWeights(this.discriminator)
-            ]);
+            for (let i = 0; i < this.codeDim; i++) {
+                await resetWeights(this.generators[i]);
+                await resetWeights(this.discriminators[i]);
+            }
             
         }
 
@@ -203,7 +175,8 @@ const DoPaNet = (function() {
             const fakeLabels = tf.fill([this.batchSize], 0);
             const qLabelsList = [];
             for (let i = 0; i < this.codeDim; i++) {
-                qLabelsList.push(tf.fill([this.batchSize], i));
+                const qLabels = tf.tensor(Array(this.batchSize).fill(i), [this.batchSize], 'int32')
+                qLabelsList.push(qLabels);
             }
             // // save to codeSamplesBuff
             // for (let i = 0; i < this.batchSize * this.codeDim; i++) {
@@ -211,32 +184,25 @@ const DoPaNet = (function() {
             // }
 
             while (this.isTraining) { 
+                this.realSamplesBuff = []
                 for (let i = 0; i < this.batchSize; i++) {
                     const [x, y] = data[Math.floor(Math.random() * data.length)];
-                    this.realSamplesBuff.set(x, i, 0);
-                    this.realSamplesBuff.set(y, i, 1);
+                    this.realSamplesBuff.push([x, y]);
                 }
-                const realSamples = this.realSamplesBuff.toTensor();
+                const realSamples = tf.tensor(this.realSamplesBuff);
                 const gLatent = tf.randomNormal([this.batchSize, this.latentDim]);
-                const fakeSamplesList = this.generators.map(gen => gen.predictOnBatch(gLatent));
-                const fakeSamples = tf.concat(fakeSamplesList);
-                const fakeSamplesVal = fakeSamples.arraySync();
                 
                 // Store values in the buffer for plotting later
-                for (let i = 0; i < this.batchSize*this.codeDim; i++) {
-                    this.fakeSamplesBuff.set(fakeSamplesVal[i][0], i, 0);
-                    this.fakeSamplesBuff.set(fakeSamplesVal[i][1], i, 1);
+                const fakeSamplesList = [];
+                this.fakeSamplesBuff = [];
+                for (let c = 0; c < this.codeDim; c++) {
+                    const fakeSamples = this.generators[c].predictOnBatch(gLatent);
+                    fakeSamplesList.push(fakeSamples);
+                    const fakeSamplesVal = fakeSamples.arraySync();
+                    this.fakeSamplesBuff.push(fakeSamplesVal);
                 }
 
                 const logValues = { iter };
-
-
-                // Train Q Network
-                // this.generators.forEach(gen => gen.trainable = false);
-                // this.discriminators.forEach(disc => disc.trainable = false);
-                // this.qNetwork.trainable = true;
-                // const qLoss = await this.qNetwork.trainOnBatch(fakeSamples, qLabels);
-
 
                 // Train Discriminator
                 this.discriminators.forEach(disc => disc.trainable = true);
@@ -245,8 +211,12 @@ const DoPaNet = (function() {
                 // and gather them for the corresponding discriminators
                 const qRealPred = this.qNetwork.predictOnBatch(realSamples);
                 const qRealPredArgmax = tf.argMax(qRealPred, 1);
-                const dTrainingPromises = [];
-                const tensorCollector = [qRealPred, qRealPredArgmax];
+
+                // Save QNetwork's predictions on real samples
+                const qRealPredArgmaxVal = qRealPredArgmax.arraySync();
+                this.qArgmaxBuff = qRealPredArgmaxVal;
+
+                const dLosses = [];
                 for (let i = 0; i < this.codeDim; i++) {
                     // gather the real samples for the corresponding discriminator
                     const mask = tf.equal(qRealPredArgmax, i);
@@ -258,9 +228,10 @@ const DoPaNet = (function() {
                     const dLabels = tf.concat([dLabelReal, dLabelFake]);
 
                     const discriminator = this.discriminators[i];
-                    const promise = discriminator.trainOnBatch(dInput, dLabels);
-                    dTrainingPromises.push(promise);
-                    tensorCollector.push([
+                    const dLoss = await discriminator.trainOnBatch(dInput, dLabels);
+                    dLosses.push(dLoss);
+
+                    tf.dispose([
                         mask,
                         dInputReal,
                         dInputFake,
@@ -270,35 +241,42 @@ const DoPaNet = (function() {
                         dLabels
                     ]);
                 }
-                const dLosses = await Promise.all(dTrainingPromises);
-                tf.dispose(tensorCollector);
+                
 
                 logValues.dLosses = dLosses;
                 logValues.avgDLoss = dLosses.reduce((a, b) => a + b) / dLosses.length;
 
 
-                // // Train Generator and Q Network
+                // Train Generator and Q Network
                 this.discriminators.forEach(disc => disc.trainable = false);
                 this.generators.forEach(gen => gen.trainable = true);
-                const gqTrainingPromises = [];
+                const gqLosses = [];
                 for (let i = 0; i < this.codeDim; i++) {
                     const combinedModel = this.combinedModels[i];
                     const gLabels = realLabels;
                     const qLabels = qLabelsList[i];
-                    const promise = combinedModel.trainOnBatch(gLatent, [gLabels, qLabels]);
-                    gqTrainingPromises.push(promise);
+                    const qLabelsOneHot = tf.oneHot(qLabels, this.codeDim);
+                    const gqLoss = await combinedModel.trainOnBatch(gLatent, [gLabels, qLabelsOneHot]);
+                    gqLosses.push(gqLoss);
+                    tf.dispose([qLabelsOneHot]);
+                    // const promise = combinedModel.trainOnBatch(gLatent, [gLabels, qLabels]);
+                    // gqTrainingPromises.push(promise);
                 }
-                const gqLosses = await Promise.all(gqTrainingPromises);
-                logValues.gLosses = gqLosses.map(losses => losses[1]);
+                // the gqLosses are
+                // 0: joint loss
+                // 1: generator-discriminator loss
+                // 2: q loss
+                logValues.gLosses = gqLosses.map(losses => losses[0]);
                 logValues.avgGLoss = logValues.gLosses.reduce((a, b) => a + b) / this.codeDim;
                 const qLosses = gqLosses.map(losses => losses[2]);
                 logValues.qLoss = qLosses.reduce((a, b) => a + b) / this.codeDim;
 
                 tf.dispose([
+                    qRealPred,
+                    qRealPredArgmax,
                     realSamples, 
                     fakeSamplesList,
                     gLatent,
-                    fakeSamples,
                 ])
                 if (callback) await callback(logValues);
                 iter++;
@@ -348,16 +326,30 @@ const DoPaNet = (function() {
                 .on('click', () => this.reset());
 
             // make the plots appear side by side
-            this.QNetworkPlot = modelCard.append('div')
+            this.QNetworkPlotSurface = modelCard.append('div')
                 .classed('wrappedItem', true)
                 .classed('plot', true)
+                .style('grid-column', 'span 2')
+                .style('width', '33%')
                 .append('svg');
-
             
-            this.discriminatorPlot = modelCard.append('div')
+            const discriminatorSubplots = modelCard.append('div')
                 .classed('wrappedItem', true)
-                .classed('plot', true)
-                .append('svg');
+                .style('display', 'grid')
+                .style('grid-template-columns', `repeat(${this.gan.codeDim}, 1fr)`)
+                .style('grid-gap', '10px')
+                .style('grid-column', 'span 2');
+
+
+            this.discriminatorPlotSurfaces = [];
+            for (let i = 0; i < this.gan.codeDim; i++) {
+                const discriminatorPlotSurface = discriminatorSubplots.append('div')
+                    .classed('wrappedItem', true)
+                    .classed('plot', true)
+                    .append('svg');
+                this.discriminatorPlotSurfaces.push(discriminatorPlotSurface);
+            }
+
 
             
         }
@@ -373,13 +365,28 @@ const DoPaNet = (function() {
             tf.dispose([x, y, grid]);
 
             this.QNetworkPlot = new DynamicMultiDecisionMap({
-                group: this.QNetworkPlot,
+                group: this.QNetworkPlotSurface,
                 xlim: [-1, 1],
                 ylim: [-1, 1],
                 zlim: [0, 1],
                 numMaps: 3,
                 gridShape: this.gridshape,
             });
+
+
+            // Make a discriminator plot for each discriminator
+            this.discriminatorPlots = [];
+            for (let i = 0; i < this.gan.codeDim; i++) {
+                const discriminatorPlot = new DynamicDecisionMap({
+                    group: this.discriminatorPlotSurfaces[i],
+                    xlim: [-1, 1],
+                    ylim: [-1, 1],
+                    zlim: [0, 1],
+                    gridShape: this.gridshape,
+                });
+                this.discriminatorPlots.push(discriminatorPlot);
+            }
+
 
             // this.discriminatorPlot = new DynamicDecisionMap({
             //     group: this.discriminatorPlot,
@@ -447,7 +454,7 @@ const DoPaNet = (function() {
                 // const fakeData = this.generate(20);
                 // Use the realDataBuff and fakeDataBuff to read data from
                 
-                const {realData, codeData, fakeData} = this.gan.readTrainingBuffer();
+                // const {realData, codeData, fakeData} = this.gan.readTrainingBuffer();
                 // const {decisionMap: ddm, gradientMap: dgm} = this.DiscriminatorDAGMap();
                 // this.discriminatorPlot.update({
                 //     realData,
@@ -457,14 +464,36 @@ const DoPaNet = (function() {
                 //     gradientMap: dgm
                 // })
 
+                const codeData = [];
+                for (let c = 0; c < this.gan.codeDim; c++) {
+                    codeData.push(Array(this.gan.batchSize).fill(c));
+                }
+
+
                 const {decisionMaps: qdm, gradientMap: qgm} = this.QDAGMaps();
                 this.QNetworkPlot.update({
-                    realData, 
-                    codeData, 
-                    fakeData,
+                    realData: this.gan.realSamplesBuff,
+                    codeData: codeData.flat(),
+                    fakeData: this.gan.fakeSamplesBuff.flat(),
                     decisionMaps: qdm, 
                     gradientMap: qgm
                 });
+
+                for (let c = 0; c < this.gan.codeDim; c++) {
+                    const {decisionMap: ddm, gradientMap: dgm} = this.DiscriminatorDAGMaps(c);
+
+                    const selectedRealSamplesBuff = this.gan.realSamplesBuff.filter(
+                        (_, idx) => this.gan.qArgmaxBuff[idx] === c
+                    );
+
+                    this.discriminatorPlots[c].update({
+                        realData: selectedRealSamplesBuff,
+                        codeData: [],
+                        fakeData: this.gan.fakeSamplesBuff[c],
+                        decisionMap: ddm,
+                        gradientMap: dgm
+                    });
+                }
 
                 this.fpsCounter.update();
             }
@@ -477,11 +506,12 @@ const DoPaNet = (function() {
         }
 
         // DAG = Decision and Gradient
-        DiscriminatorDAGMap() {
+        DiscriminatorDAGMaps(dIndex) {
+            const discriminator = this.gan.discriminators[dIndex];
             const points = this.decisionMapInputBuff;
             const {value: pred, grad} = tf.valueAndGrad(
                 point => {
-                    return this.gan.discriminator.predictOnBatch(point);
+                    return discriminator.predictOnBatch(point);
                 })(points);
 
             const xyuv = tf.concat([points, grad], 1);
