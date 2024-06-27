@@ -1,17 +1,17 @@
 const DoPaNetDiagram = (function() {
     function constructDescription(div) {
         const data = {
-            title: "DoPaNet",
-            description: "...",
+            title: "Domain Partitioning Network (DoPaNet)",
+            description: "DoPaNet is an advanced GAN architecture designed to address the issue of mode collapse by incorporating multiple discriminators and a classifier network. The architecture of DoPaNet consists of three main components:",
             components: [
-                "...",
-                "...",
-                "..."
+                "Generator (G): This network generates fake data samples from a random noise vector combined with latent codes.",
+                "Discriminators (D1, D2, ..., Dn): These networks are used to evaluate the generated samples, each focusing on a different part of the target distribution to ensure full coverage of the real data distribution.",
+                "Classifier (Q): This specialized network decides which discriminator the generator should be trained against for each sample, ensuring that different parts of the data distribution are learned by different discriminators."
             ],
-            flowDescription: "...",
-            
+            flowDescription: "The Generator (G) receives input from latent codes and random noise, producing synthetic data samples. The Classifier (Q) determines which Discriminator (Dn) to use for evaluating each sample, thus guiding the Generator to cover the entire target distribution. Each Discriminator (Dn) then evaluates the samples, aiding the Generator in improving the quality and diversity of the generated samples."
         };
 
+        // Append the DoPaNet content to the container using D3.js
         const container = div;
 
         container.append("h1").text(data.title);
@@ -26,6 +26,7 @@ const DoPaNetDiagram = (function() {
         container.append("h2").text("Information Flow");
         container.append("p").text(data.flowDescription);
     }
+
 
     function constructDiagram(div) {
 

@@ -294,13 +294,13 @@ class DynamicScatterPlot {
         // Update existing circles
         const p1 = circles
             .attr("cx", d => this.xScale(d[0]))
-            .attr("cy", d => this.yScale(d[1]));
+            .attr("cy", d => this.yScale(d[1]))
+            .transition().duration(0).end();
             // .attr("r", 3)
             // .attr("fill", d => colors[d.index])
             // .attr("stroke", "#000")
             // .attr("stroke-width", 1)
             // .attr("opacity", 0.7)
-            // .transition().duration(0).end();
 
         // Enter new circles
         const p2 = circles.enter()

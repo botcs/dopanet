@@ -23,13 +23,12 @@ const DoPaNet = (function() {
                 latentDim = 10,
                 codeDim = 3,
                 genLayers = 1,
-                genStartDim = 32,
+                genStartDim = 512,
                 discLayers = 1,
-                discStartDim = 32,
+                discStartDim = 512,
                 batchSize = 16,
                 qWeight = 0.1,
-                latentNorm = 1/4,
-                gLR = 0.0001,
+                gLR = 0.0002,
                 dLR = 0.0005,
             } = {}
         ) {
@@ -45,7 +44,6 @@ const DoPaNet = (function() {
             this.discStartDim = discStartDim;
             this.batchSize = batchSize;
             this.qWeight = qWeight;
-            this.latentNorm = latentNorm;
             this.gLR = gLR;
             this.dLR = dLR;
 
@@ -230,6 +228,7 @@ const DoPaNet = (function() {
                     const discriminator = this.discriminators[i];
                     const dLoss = await discriminator.trainOnBatch(dInput, dLabels);
                     dLosses.push(dLoss);
+                    dLosses.push(0);
 
                     tf.dispose([
                         mask,
@@ -259,9 +258,8 @@ const DoPaNet = (function() {
                     const gqLoss = await combinedModel.trainOnBatch(gLatent, [gLabels, qLabelsOneHot]);
                     gqLosses.push(gqLoss);
                     tf.dispose([qLabelsOneHot]);
-                    // const promise = combinedModel.trainOnBatch(gLatent, [gLabels, qLabels]);
-                    // gqTrainingPromises.push(promise);
                 }
+
                 // the gqLosses are
                 // 0: joint loss
                 // 1: generator-discriminator loss
@@ -357,7 +355,7 @@ const DoPaNet = (function() {
         async init() {
             // change the button text
             this.trainToggleButton.text('Initializing...');
-            this.gridshape = [15, 15];
+            this.gridshape = [10, 10];
             const x = tf.linspace(-1, 1, this.gridshape[0]);
             const y = tf.linspace(-1, 1, this.gridshape[1]);
             const grid = tf.meshgrid(x, y);
@@ -450,19 +448,6 @@ const DoPaNet = (function() {
                     this.gLossVisors[i].push({x: logData.iter, y: logData.gLosses[i]});
                 }
                 
-                // const realData = d3.shuffle(this.inputData).slice(0, 20);
-                // const fakeData = this.generate(20);
-                // Use the realDataBuff and fakeDataBuff to read data from
-                
-                // const {realData, codeData, fakeData} = this.gan.readTrainingBuffer();
-                // const {decisionMap: ddm, gradientMap: dgm} = this.DiscriminatorDAGMap();
-                // this.discriminatorPlot.update({
-                //     realData,
-                //     codeData,
-                //     fakeData,
-                //     decisionMap: ddm,
-                //     gradientMap: dgm
-                // })
 
                 const codeData = [];
                 for (let c = 0; c < this.gan.codeDim; c++) {
@@ -471,7 +456,7 @@ const DoPaNet = (function() {
 
 
                 const {decisionMaps: qdm, gradientMap: qgm} = this.QDAGMaps();
-                this.QNetworkPlot.update({
+                await this.QNetworkPlot.update({
                     realData: this.gan.realSamplesBuff,
                     codeData: codeData.flat(),
                     fakeData: this.gan.fakeSamplesBuff.flat(),
@@ -486,7 +471,7 @@ const DoPaNet = (function() {
                         (_, idx) => this.gan.qArgmaxBuff[idx] === c
                     );
 
-                    this.discriminatorPlots[c].update({
+                    await this.discriminatorPlots[c].update({
                         realData: selectedRealSamplesBuff,
                         codeData: [],
                         fakeData: this.gan.fakeSamplesBuff[c],
@@ -497,6 +482,8 @@ const DoPaNet = (function() {
 
                 this.fpsCounter.update();
             }
+
+            
 
             this.isInitialized = true;
         }
