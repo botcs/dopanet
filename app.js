@@ -13,6 +13,7 @@ function main(){
         'vanilla': new VanillaGAN.ModelHandler(normalizedInputData),
         'infogan': new InfoGAN.ModelHandler(normalizedInputData),
         'madgan': new MADGAN.ModelHandler(normalizedInputData),
+        'dopanet': new DoPaNet.ModelHandler(normalizedInputData),
     };
 
     let isDrawing = false;

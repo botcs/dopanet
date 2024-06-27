@@ -1,4 +1,32 @@
-const InfoGANDiagram = (function() {
+const DoPaNetDiagram = (function() {
+    function constructDescription(div) {
+        const data = {
+            title: "DoPaNet",
+            description: "...",
+            components: [
+                "...",
+                "...",
+                "..."
+            ],
+            flowDescription: "...",
+            
+        };
+
+        const container = div;
+
+        container.append("h1").text(data.title);
+
+        container.append("p").text(data.description);
+
+        const ol = container.append("ol");
+        data.components.forEach(component => {
+            ol.append("li").html(`<strong>${component.split(':')[0]}</strong>: ${component.split(':')[1]}`);
+        });
+
+        container.append("h2").text("Information Flow");
+        container.append("p").text(data.flowDescription);
+    }
+
     function constructDiagram(div) {
 
         // make it responsive
@@ -104,5 +132,5 @@ const InfoGANDiagram = (function() {
         });
     }
 
-    return { constructDiagram };
+    return { constructDescription, constructDiagram };
 })();

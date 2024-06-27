@@ -30,9 +30,6 @@ const MADGAN = (function() {
                 batchSize = 16,
             } = {}
         ) {
-            this.generators = [];
-            this.discriminator = null;
-            this.combinedModel = null;
             this.latentDim = latentDim;
             this.codeDim = codeDim;
             this.genLayers = genLayers;
@@ -64,25 +61,20 @@ const MADGAN = (function() {
         }
     
         buildGenerators({latentDim, numLayers = 4, startDim = 128}) {
+            this.generators = [];
             for (let i = 0; i < this.codeDim; i++) {
-                const gInput = tf.input({ shape: [latentDim] });
-                const backbone = tf.sequential();
-                backbone.add(tf.layers.dense({ units: startDim, inputShape: [latentDim], activation: 'relu' }));
-        
+                const generator = tf.sequential();
+                generator.add(tf.layers.dense({ units: startDim, inputShape: [latentDim], activation: 'relu' }));
                 for (let i = 1; i < numLayers; i++) {
-                    backbone.add(tf.layers.dense({ units: startDim * Math.pow(2, i), activation: 'relu' }));
+                    generator.add(tf.layers.dense({ units: startDim * Math.pow(2, i), activation: 'relu' }));
                 }
-        
-                backbone.add(tf.layers.dense({ units: 2, activation: 'linear' }));
-                const gOutput = backbone.apply(gInput);
-
-                const generator = tf.model({ inputs: gInput, outputs: gOutput });
+                generator.add(tf.layers.dense({ units: 2, activation: 'linear' }));
+                
                 this.generators.push(generator);
             }
         }
     
         buildDiscriminator({numLayers, startDim, codeDim}={}) {
-            const dInput = tf.input({ shape: [2] });
             const discriminator = tf.sequential();
             discriminator.add(tf.layers.dense({ units: startDim, inputShape: [2], activation: 'relu' }));
     
@@ -91,9 +83,7 @@ const MADGAN = (function() {
             }
 
             discriminator.add(tf.layers.dense({ units: codeDim + 1, activation: 'softmax' }));
-            const dOutput = discriminator.apply(dInput);
-
-            this.discriminator = tf.model({ inputs: dInput, outputs: dOutput });
+            this.discriminator = discriminator;
             this.discriminator.compile({ 
                 optimizer: tf.train.adam(0.001),
                 loss: 'sparseCategoricalCrossentropy' 
@@ -103,12 +93,10 @@ const MADGAN = (function() {
         buildCombinedModels() {
             this.combinedModels = [];
             for (let i = 0; i < this.codeDim; i++) {
-                const gInput = this.generators[i].input;
-                const gOutput = this.generators[i].output;
-                const dOutput = this.discriminator.apply(gOutput);
-
-                const combinedModel = tf.model({ inputs: gInput, outputs: dOutput });
-
+                const combinedModel = tf.sequential();
+                combinedModel.add(this.generators[i]);
+                this.discriminator.trainable = false;
+                combinedModel.add(this.discriminator);
                 combinedModel.compile({ 
                     optimizer: tf.train.adam(0.0001),
                     loss: 'sparseCategoricalCrossentropy'
@@ -121,14 +109,14 @@ const MADGAN = (function() {
         readTrainingBuffer() {
             const realData = this.realSamplesBuff.toTensor();
             const fakeData = this.fakeSamplesBuff.toTensor();
-            const codeData = this.codeSamplesBuff.toTensor();
+            const codeData = this.codeSamples;
 
             const ret = {
                 realData: realData.arraySync(),
                 codeData: codeData.arraySync(),
                 fakeData: fakeData.arraySync(),
             }
-            tf.dispose([realData, codeData, fakeData]);
+            tf.dispose([realData, fakeData]);
             return ret;
         }
 
@@ -152,18 +140,13 @@ const MADGAN = (function() {
     
             this.isTraining = true;
             let iter = 0;
-            const realLabels = tf.fill([this.batchSize, 1], this.codeDim);
+            const realLabels = tf.fill([this.batchSize], this.codeDim);
             const fakeLabelsJS = [];
             for (let i = 0; i < this.codeDim; i++) {
-                fakeLabelsJS.push(tf.fill([this.batchSize, 1], i));
+                fakeLabelsJS.push(Array(this.batchSize).fill(i));
             }
-            const fakeLabels = tf.concat(fakeLabelsJS);
-            const fakeLabelsVal = fakeLabels.arraySync();
-            // save to codeSamplesBuff
-            for (let i = 0; i < this.batchSize * this.codeDim; i++) {
-                this.codeSamplesBuff.set(fakeLabelsVal[i], i);
-            }
-
+            const fakeLabels = tf.tensor(fakeLabelsJS.flat());
+            this.codeSamples = fakeLabels;
             const dLabels = tf.concat([realLabels, fakeLabels]);
     
             while (this.isTraining) { 
@@ -174,10 +157,10 @@ const MADGAN = (function() {
                 }
                 const realSamples = this.realSamplesBuff.toTensor();
                 const gLatent = tf.randomNormal([this.batchSize, this.latentDim]);
-    
-                const fakeSamples = tf.concat(this.generators.map(gen => gen.predict(gLatent)));
+                const fakeSamplesList = this.generators.map(gen => gen.predictOnBatch(gLatent));
+                const fakeSamples = tf.concat(fakeSamplesList);
                 const fakeSamplesVal = fakeSamples.arraySync();
-    
+
                 for (let i = 0; i < this.batchSize * this.codeDim; i++) {
                     this.fakeSamplesBuff.set(fakeSamplesVal[i][0], i, 0);
                     this.fakeSamplesBuff.set(fakeSamplesVal[i][1], i, 1);
@@ -200,11 +183,12 @@ const MADGAN = (function() {
                     }
                 ));
                 logValues.gLosses = gLosses;
-                logValues.gLossAvg = gLosses.reduce((a, b) => a + b, 0) / this.codeDim;
+                logValues.gLossAvg = gLosses.reduce((a, b) => a + b) / this.codeDim;
     
                 tf.dispose([
                     realSamples, 
                     gLatent,
+                    fakeSamplesList,
                     fakeSamples,
                     dInputs,
                 ])
@@ -342,11 +326,11 @@ const MADGAN = (function() {
         // DAG = Decision and Gradient
         DiscriminatorDAGMaps() {
             const points = this.decisionMapInputBuff;
-            const preds = this.gan.discriminator.predict(points);
+            const preds = this.gan.discriminator.predictOnBatch(points);
             const predsT = preds.transpose();
             
             const grad = tf.grad((point) => {
-                const predictions = this.gan.discriminator.predict(point);
+                const predictions = this.gan.discriminator.predictOnBatch(point);
                 // Gather the last element of each row
                 const lastValues = predictions.gather(predictions.shape[1] - 1, 1);
                 return lastValues.sum();

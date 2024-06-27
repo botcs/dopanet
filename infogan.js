@@ -146,7 +146,7 @@ const InfoGAN = (function() {
                     const idxs = randInt(0, this.codeDim, this.batchSize);
                     const gCode = tf.oneHot(idxs, this.codeDim);
                     // const gInput = tf.concat([latentPoints, codes], 1);
-                    const fakeSamples = this.generator.predict([gLatent, gCode]);
+                    const fakeSamples = this.generator.predictOnBatch([gLatent, gCode]);
 
                     const dInputs = tf.concat([realSamples, fakeSamples]);
         
@@ -159,13 +159,13 @@ const InfoGAN = (function() {
                     const logValues = { iter, gLoss: 0, dLoss: 0, qLoss: 0 };
 
                     optimizerD.minimize(() => {
-                        const baseOutput = this.baseNetwork.predict(dInputs);
-                        const dOutput = this.discriminator.predict(baseOutput);
+                        const baseOutput = this.baseNetwork.predictOnBatch(dInputs);
+                        const dOutput = this.discriminator.predictOnBatch(baseOutput);
                         const dLossVal = tf.metrics.binaryCrossentropy(dLabels, dOutput).mean();
                         logValues.dLoss = dLossVal.arraySync();
 
                         const qInput = tf.slice(baseOutput, [0, 0], [this.batchSize, -1]);
-                        const qOutput = this.qNetwork.predict(qInput);
+                        const qOutput = this.qNetwork.predictOnBatch(qInput);
                         const qLossVal = tf.metrics.categoricalCrossentropy(gCode, qOutput).mean();
                         logValues.qLoss = qLossVal.arraySync();
                         const totalLoss = dLossVal.add(qLossVal.mul(this.qWeight));
@@ -179,13 +179,13 @@ const InfoGAN = (function() {
                     this.discriminator.trainable = false;
                     
                     optimizerG.minimize(() => {
-                        const fakeSamples = this.generator.predict([gLatent, gCode]);
-                        const baseOutput = this.baseNetwork.predict(fakeSamples);
-                        const dOutput = this.discriminator.predict(baseOutput);
+                        const fakeSamples = this.generator.predictOnBatch([gLatent, gCode]);
+                        const baseOutput = this.baseNetwork.predictOnBatch(fakeSamples);
+                        const dOutput = this.discriminator.predictOnBatch(baseOutput);
                         const gLossVal = tf.metrics.binaryCrossentropy(realLabels, dOutput).mean();
                         logValues.gLoss = gLossVal.arraySync();
 
-                        const qOutput = this.qNetwork.predict(baseOutput);
+                        const qOutput = this.qNetwork.predictOnBatch(baseOutput);
                         const qLossVal = tf.metrics.categoricalCrossentropy(gCode, qOutput).mean();
                         const totalLoss = gLossVal.add(qLossVal.mul(this.qWeight));
                         return totalLoss;
@@ -216,7 +216,7 @@ const InfoGAN = (function() {
                     () => Math.floor(Math.random() * this.codeDim)
                 );
                 const gCode = tf.oneHot(codeInts, this.codeDim);
-                const pred = this.generator.predict([gLatent, gCode]);
+                const pred = this.generator.predictOnBatch([gLatent, gCode]);
                 const ret = pred.arraySync();
                 return ret;
             });
@@ -298,8 +298,8 @@ const InfoGAN = (function() {
                 const points = this.decisionMapInputBuff;
                 const res = tf.valueAndGrad(
                     point => {
-                        const dInput = this.gan.baseNetwork.predict(point);
-                        return this.gan.discriminator.predict(dInput);
+                        const dInput = this.gan.baseNetwork.predictOnBatch(point);
+                        return this.gan.discriminator.predictOnBatch(dInput);
                     })(points);
 
                 const pred2D = res.value.reshape([this.gridSize, this.gridSize]);
