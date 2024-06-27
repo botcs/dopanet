@@ -84,10 +84,22 @@ canvas {
     box-sizing: border-box;
 }
 
+.rowSubplots {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-column: span 2;
+    gap: 10px;
+}
+
 .plot {
     height: 30vh;
     width: 100%;
     border: 1px solid black;
+    shape-rendering: optimizeSpeed;
+}
+
+.middlePlot {
+    grid-column: 2;
 }
 
 button {
@@ -129,6 +141,15 @@ button {
 
     .wrapContainer {
         grid-template-columns: 1fr;
+    }
+
+    .rowSubplots {
+        grid-template-columns: 1fr;
+        grid-column: unset;
+    }
+
+    .middlePlot {
+        grid-column: 1;
     }
 
     .bottomSection {

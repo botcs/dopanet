@@ -326,17 +326,19 @@ const DoPaNet = (function() {
             // make the plots appear side by side
             this.QNetworkPlotSurface = modelCard.append('div')
                 .classed('wrappedItem', true)
+                .classed('rowSubplots', true)
+                .append('div')
                 .classed('plot', true)
-                .style('grid-column', 'span 2')
-                .style('width', '33%')
+                .classed('middlePlot', true)
                 .append('svg');
             
             const discriminatorSubplots = modelCard.append('div')
                 .classed('wrappedItem', true)
-                .style('display', 'grid')
-                .style('grid-template-columns', `repeat(${this.gan.codeDim}, 1fr)`)
-                .style('grid-gap', '10px')
-                .style('grid-column', 'span 2');
+                .classed('rowSubplots', true);
+                // .style('grid-column', 'span 2');
+                // .style('display', 'grid')
+                // .style('grid-template-columns', `repeat(${this.gan.codeDim}, 1fr)`)
+                // .style('grid-gap', '10px')
 
 
             this.discriminatorPlotSurfaces = [];
