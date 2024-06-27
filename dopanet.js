@@ -27,7 +27,7 @@ const DoPaNet = (function() {
                 discLayers = 1,
                 discStartDim = 512,
                 batchSize = 16,
-                qWeight = 0.1,
+                qWeight = 0.05,
                 gLR = 0.0002,
                 dLR = 0.0005,
             } = {}
@@ -424,12 +424,12 @@ const DoPaNet = (function() {
             //     yLabel: 'Loss',
             // });
 
-            // this.qLossAvgVisor = new VisLogger({
-            //     name: 'Average Q Loss',
-            //     tab: 'DoPaNet',
-            //     xLabel: 'Iteration',
-            //     yLabel: 'Loss',
-            // });
+            this.qLossAvgVisor = new VisLogger({
+                name: 'Q Loss',
+                tab: 'DoPaNet',
+                xLabel: 'Iteration',
+                yLabel: 'Loss',
+            });
 
             this.dLossVisors = [];
             this.gLossVisors = [];
