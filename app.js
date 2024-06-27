@@ -10,10 +10,10 @@ function main(){
     const normalizedInputData = [];
 
     modelHandlers = {
+        'dopanet': new DoPaNet.ModelHandler(normalizedInputData),
         'vanilla': new VanillaGAN.ModelHandler(normalizedInputData),
         'infogan': new InfoGAN.ModelHandler(normalizedInputData),
         'madgan': new MADGAN.ModelHandler(normalizedInputData),
-        'dopanet': new DoPaNet.ModelHandler(normalizedInputData),
     };
 
     let isDrawing = false;

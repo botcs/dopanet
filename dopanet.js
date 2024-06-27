@@ -20,13 +20,13 @@ const DoPaNet = (function() {
     class DoPaNet {
         constructor(
             {
-                latentDim = 100,
+                latentDim = 10,
                 codeDim = 3,
-                genLayers = 0,
-                genStartDim = 512,
+                genLayers = 1,
+                genStartDim = 128,
                 discLayers = 1,
-                discStartDim = 512,
-                batchSize = 64,
+                discStartDim = 128,
+                batchSize = 16,
                 qWeight = 1,
                 latentNorm = 1/4,
                 gLR = 0.0001,
@@ -118,10 +118,10 @@ const DoPaNet = (function() {
 
             qNetwork.add(tf.layers.dense({ units: codeDim, activation: 'softmax' }));
             
-            qNetwork.compile({
-                optimizer: tf.train.adam(this.qLR),
-                loss: 'categoricalCrossentropy',
-            });
+            // qNetwork.compile({
+            //     optimizer: tf.train.adam(this.qLR),
+            //     loss: 'categoricalCrossentropy',
+            // });
             this.qNetwork = qNetwork;
         }
 
@@ -145,11 +145,17 @@ const DoPaNet = (function() {
                     inputs: gInput,
                     outputs: [dOutput, qOutput]
                 });
-                const gLossFn = (yTrue, yPred) => tf.metrics.binaryCrossentropy(yTrue, yPred);
-                const qLossFn = (yTrue, yPred) => tf.metrics.sparseCategoricalCrossentropy(yTrue, yPred).mul(tf.scalar(this.qWeight));
+                // const gLossFn = (yTrue, yPred) => tf.metrics.binaryCrossentropy(yTrue, yPred);
+                // const qLossFn = (yTrue, yPred) => tf.metrics.sparseCategoricalCrossentropy(yTrue, yPred);
+
                 combinedModel.compile({
                     optimizer: tf.train.adam(this.gLR),
-                    loss: [gLossFn, qLossFn],
+                    // loss: [gLossFn, qLossFn],
+                    loss: [
+                        'binaryCrossentropy', 
+                        'sparseCategoricalCrossentropy'
+                    ],
+                    lossWeights: [1, this.qWeight]
                 });
                 this.combinedModels.push(combinedModel);
             }
@@ -157,15 +163,20 @@ const DoPaNet = (function() {
 
         readTrainingBuffer() {
             const realData = this.realSamplesBuff.toTensor();
-            const codeData = this.codeSamplesBuff.toTensor();
             const fakeData = this.fakeSamplesBuff.toTensor();
+            const codeData = [];
+            for (let i = 0; i < this.codeDim; i++) {
+                codeData.push(Array(this.batchSize).fill(i));
+            }
+
+
 
             const ret = {
                 realData: realData.arraySync(),
-                codeData: codeData.arraySync(),
+                codeData: codeData.flat(),
                 fakeData: fakeData.arraySync(),
             }
-            tf.dispose([realData, codeData, fakeData]);
+            tf.dispose([realData, fakeData]);
             return ret;
         }
 
@@ -190,15 +201,14 @@ const DoPaNet = (function() {
             let iter = 0;
             const realLabels = tf.fill([this.batchSize], 1);
             const fakeLabels = tf.fill([this.batchSize], 0);
-            const qLabelsJS = [];
+            const qLabelsList = [];
             for (let i = 0; i < this.codeDim; i++) {
-                qLabelsJS.push(Array(this.batchSize).fill(i));
+                qLabelsList.push(tf.fill([this.batchSize], i));
             }
-            const qLabels = tf.tensor(qLabelsJS.flat());
-            // save to codeSamplesBuff
-            for (let i = 0; i < this.batchSize * this.codeDim; i++) {
-                this.codeSamplesBuff.set(qLabelsJS[i], i);
-            }
+            // // save to codeSamplesBuff
+            // for (let i = 0; i < this.batchSize * this.codeDim; i++) {
+            //     this.codeSamplesBuff.set(qLabelsJS[i], i);
+            // }
 
             while (this.isTraining) { 
                 for (let i = 0; i < this.batchSize; i++) {
@@ -213,7 +223,7 @@ const DoPaNet = (function() {
                 const fakeSamplesVal = fakeSamples.arraySync();
                 
                 // Store values in the buffer for plotting later
-                for (let i = 0; i < this.batchSize; i++) {
+                for (let i = 0; i < this.batchSize*this.codeDim; i++) {
                     this.fakeSamplesBuff.set(fakeSamplesVal[i][0], i, 0);
                     this.fakeSamplesBuff.set(fakeSamplesVal[i][1], i, 1);
                 }
@@ -236,45 +246,64 @@ const DoPaNet = (function() {
                 const qRealPred = this.qNetwork.predictOnBatch(realSamples);
                 const qRealPredArgmax = tf.argMax(qRealPred, 1);
                 const dTrainingPromises = [];
+                const tensorCollector = [qRealPred, qRealPredArgmax];
                 for (let i = 0; i < this.codeDim; i++) {
                     // gather the real samples for the corresponding discriminator
                     const mask = tf.equal(qRealPredArgmax, i);
-                    const dInput = await tf.booleanMaskAsync(realSamples, mask);
-                    // CSABI: START FROM HERE TOMORROW
+                    const dInputReal = await tf.booleanMaskAsync(realSamples, mask);
+                    const dInputFake = fakeSamplesList[i];
+                    const dInput = tf.concat([dInputReal, dInputFake]);
+                    const dLabelReal = tf.fill([dInputReal.shape[0]], 1);
+                    const dLabelFake = tf.fill([dInputFake.shape[0]], 0);
+                    const dLabels = tf.concat([dLabelReal, dLabelFake]);
+
                     const discriminator = this.discriminators[i];
                     const promise = discriminator.trainOnBatch(dInput, dLabels);
                     dTrainingPromises.push(promise);
-                    tf.dispose(mask, realSamplesForDisc);
+                    tensorCollector.push([
+                        mask,
+                        dInputReal,
+                        dInputFake,
+                        dInput,
+                        dLabelReal,
+                        dLabelFake,
+                        dLabels
+                    ]);
                 }
                 const dLosses = await Promise.all(dTrainingPromises);
+                tf.dispose(tensorCollector);
 
                 logValues.dLosses = dLosses;
                 logValues.avgDLoss = dLosses.reduce((a, b) => a + b) / dLosses.length;
 
 
-                // Train Generator and Q Network
+                // // Train Generator and Q Network
                 this.discriminators.forEach(disc => disc.trainable = false);
                 this.generators.forEach(gen => gen.trainable = true);
                 const gqTrainingPromises = [];
                 for (let i = 0; i < this.codeDim; i++) {
-                    const combinedModel = this.combinedModel[i];
-                    const promise = combinedModel.trainOnBatch(gLatent, realLabels);
+                    const combinedModel = this.combinedModels[i];
+                    const gLabels = realLabels;
+                    const qLabels = qLabelsList[i];
+                    const promise = combinedModel.trainOnBatch(gLatent, [gLabels, qLabels]);
                     gqTrainingPromises.push(promise);
                 }
                 const gqLosses = await Promise.all(gqTrainingPromises);
                 logValues.gLosses = gqLosses.map(losses => losses[1]);
-                logValues.avgGLoss = gqLosses.reduce((a, b) => a + b[1]) / gqLosses.length;
-                logValues.qLoss = gqLosses.reduce((a, b) => a + b[2]) / gqLosses.length;
+                logValues.avgGLoss = logValues.gLosses.reduce((a, b) => a + b) / this.codeDim;
+                const qLosses = gqLosses.map(losses => losses[2]);
+                logValues.qLoss = qLosses.reduce((a, b) => a + b) / this.codeDim;
 
                 tf.dispose([
                     realSamples, 
+                    fakeSamplesList,
                     gLatent,
                     fakeSamples,
                 ])
                 if (callback) await callback(logValues);
                 iter++;
             }
-            tf.dispose([realLabels, fakeLabels, dLabels]);
+            tf.dispose([realLabels, fakeLabels, ...qLabelsList]);
             this.isTraining = false;
         }
 
@@ -293,7 +322,7 @@ const DoPaNet = (function() {
             // Build the DOM entry
             this.modelEntry = d3.select('#modelEntryContainer').append('div')
                 .attr('class', 'modelEntry')
-                .attr('id', 'InfoGAN');
+                .attr('id', 'DoPaNet');
 
             this.modelEntry
             const modelCard = this.modelEntry.append('div')
@@ -343,14 +372,14 @@ const DoPaNet = (function() {
             this.decisionMapInputBuff = tf.stack([grid[0].flatten(), grid[1].flatten()], 1);
             tf.dispose([x, y, grid]);
 
-            // this.QNetworkPlot = new DynamicMultiDecisionMap({
-            //     group: this.QNetworkPlot,
-            //     xlim: [-1, 1],
-            //     ylim: [-1, 1],
-            //     zlim: [0, 1],
-            //     numMaps: 3,
-            //     gridShape: this.gridshape,
-            // });
+            this.QNetworkPlot = new DynamicMultiDecisionMap({
+                group: this.QNetworkPlot,
+                xlim: [-1, 1],
+                ylim: [-1, 1],
+                zlim: [0, 1],
+                numMaps: 3,
+                gridShape: this.gridshape,
+            });
 
             // this.discriminatorPlot = new DynamicDecisionMap({
             //     group: this.discriminatorPlot,
@@ -362,37 +391,63 @@ const DoPaNet = (function() {
 
             await this.gan.init();
 
-            this.fpsCounter = new FPSCounter("InfoGAN FPS");
-            this.gLossVisor = new VisLogger({
-                name: 'Generator Loss',
-                tab: 'InfoGAN',
+            this.fpsCounter = new FPSCounter("DoPaNet FPS");
+            this.dLossAvgVisor = new VisLogger({
+                name: 'Average Discriminator Loss',
+                tab: 'DoPaNet',
                 xLabel: 'Iteration',
                 yLabel: 'Loss',
             });
-            this.dLossVisor = new VisLogger({
-                name: 'Discriminator Loss',
-                tab: 'InfoGAN',
+
+
+            this.gLossAvgVisor = new VisLogger({
+                name: 'Average Generator Loss',
+                tab: 'DoPaNet',
                 xLabel: 'Iteration',
                 yLabel: 'Loss',
             });
-            this.qLossVisor = new VisLogger({
-                name: 'Q Network Loss',
-                tab: 'InfoGAN',
+
+            this.qLossAvgVisor = new VisLogger({
+                name: 'Average Q Loss',
+                tab: 'DoPaNet',
                 xLabel: 'Iteration',
                 yLabel: 'Loss',
             });
+
+            this.dLossVisors = [];
+            this.gLossVisors = [];
+            for (let i = 0; i < this.gan.codeDim; i++) {
+                this.dLossVisors.push(new VisLogger({
+                    name: `Discriminator ${i} Loss`,
+                    tab: 'DoPaNet',
+                    xLabel: 'Iteration',
+                    yLabel: 'Loss',
+                }));
+                this.gLossVisors.push(new VisLogger({
+                    name: `Generator ${i} Loss`,
+                    tab: 'DoPaNet',
+                    xLabel: 'Iteration',
+                    yLabel: 'Loss',
+                }));
+            }
+
             
 
-            this.callback = async ({iter, gLoss, dLoss, qLoss}) => {
-                this.gLossVisor.push({ x: iter, y: gLoss });
-                this.dLossVisor.push({ x: iter, y: dLoss });
-                this.qLossVisor.push({ x: iter, y: qLoss });
+            this.callback = async (logData) => {
+                this.dLossAvgVisor.push({x: logData.iter, y: logData.avgDLoss});
+                this.gLossAvgVisor.push({x: logData.iter, y: logData.avgGLoss});
+                this.qLossAvgVisor.push({x: logData.iter, y: logData.qLoss});
+
+                for (let i = 0; i < this.gan.codeDim; i++) {
+                    this.dLossVisors[i].push({x: logData.iter, y: logData.dLosses[i]});
+                    this.gLossVisors[i].push({x: logData.iter, y: logData.gLosses[i]});
+                }
                 
                 // const realData = d3.shuffle(this.inputData).slice(0, 20);
                 // const fakeData = this.generate(20);
                 // Use the realDataBuff and fakeDataBuff to read data from
                 
-                // const {realData, codeData, fakeData} = this.gan.readTrainingBuffer();
+                const {realData, codeData, fakeData} = this.gan.readTrainingBuffer();
                 // const {decisionMap: ddm, gradientMap: dgm} = this.DiscriminatorDAGMap();
                 // this.discriminatorPlot.update({
                 //     realData,
@@ -402,14 +457,14 @@ const DoPaNet = (function() {
                 //     gradientMap: dgm
                 // })
 
-                // const {decisionMaps: qdm, gradientMap: qgm} = this.QDAGMaps();
-                // this.QNetworkPlot.update({
-                //     realData, 
-                //     codeData, 
-                //     fakeData,
-                //     decisionMaps: qdm, 
-                //     gradientMap: qgm
-                // });
+                const {decisionMaps: qdm, gradientMap: qgm} = this.QDAGMaps();
+                this.QNetworkPlot.update({
+                    realData, 
+                    codeData, 
+                    fakeData,
+                    decisionMaps: qdm, 
+                    gradientMap: qgm
+                });
 
                 this.fpsCounter.update();
             }
@@ -463,7 +518,7 @@ const DoPaNet = (function() {
             if (!this.isInitialized) await this.init();
             this.gan.trainToggle(this.inputData, this.callback);
             
-            tfvis.visor().setActiveTab('InfoGAN');
+            tfvis.visor().setActiveTab('DoPaNet');
 
             // change the button text
             if (this.gan.isTraining) {
