@@ -156,3 +156,11 @@ button {
         overflow-y: unset;
     }
 }
+
+/* For laptop screens set the width */
+@media (min-width: 768px) and (max-width: 1624px) {
+    .topSection, .bottomSection {
+        width: 70vw;
+        font-size: 0.7em;
+    }
+}

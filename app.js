@@ -173,6 +173,20 @@ function main(){
 
     tfvis.visor().close();
 
+
+    // Set up SVG viewboxes
+    d3.selectAll("svg").each(function() {
+        var svg = d3.select(this);
+        // check if the svg has a viewBox property
+        if (svg.attr("viewBox")) {
+            return;
+        }
+
+        var width = svg.node().clientWidth || svg.node().getBoundingClientRect().width;
+        var height = svg.node().clientHeight || svg.node().getBoundingClientRect().height;
+        svg.attr("viewBox", `0 0 ${width} ${height}`);
+    });
+
     // Set up periodic printing of the number of tensors
     window.numTensorLogger = new VisLogger({
         name: "Number of Tensors over Time",

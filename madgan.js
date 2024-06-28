@@ -242,7 +242,7 @@ const MADGAN = (function() {
             this.discriminatorPlot = modelCard.append('div')
                 .classed('wrappedItem', true)
                 .classed('plot', true)
-                .style('grid-column', 2)
+                // .style('grid-column', 2)
                 .append('svg');
         }
 
